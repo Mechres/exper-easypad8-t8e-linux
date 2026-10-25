@@ -13,6 +13,11 @@
 	model = "Exper Easypad T8E";
 	compatible = "exper,easypad-t8e", "allwinner,sun6i-a31s";
 
+	aliases {
+		mmc0 = &mmc0;
+		mmc1 = &mmc1;
+	};
+
 	wifi_pwrseq: pwrseq {
 		compatible = "mmc-pwrseq-simple";
 		/* Allwinner A31s GPL bank base is 181: FEX gpio 186 = 186 - 181 = PL5 */
