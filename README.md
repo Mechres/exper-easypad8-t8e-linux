@@ -41,7 +41,7 @@ Internal NAND/eMMC flash remains completely untouched; the entire system boots c
 | **WiFi** | Broadcom `brcmfmac` (`wlan0`) | **Working** | SDIO AP6210 (BCM43362) on mmc1; live scanning verified |
 | **Touchscreen** | `goodix` driver (`input0`) | **Working** | Event reports validated via evtest |
 | **Sensors** | `st_lis3dh` I2C driver | **Detected** | Probed on I2C2 @ 0x19 |
-| **Display (DRM)**| `sun4i-drm` / panel-simple | *In Progress* | SimpleFB functional in U-Boot; DRM work starting |
+| **Display (LCD)**| SimpleFB (`/dev/fb0`) + `fbcon` | **Working** | 1024×768@60Hz single-channel LVDS; console login active |
 | **Bluetooth** | `hci_uart` | *Planned* | Broadcom UART on uart1 |
 | **Audio** | Allwinner sun6i codec | *Planned* | Headphone jack & internal speaker |
 
