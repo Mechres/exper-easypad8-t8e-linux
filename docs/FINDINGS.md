@@ -203,3 +203,13 @@ A total of 40 technical findings were diagnosed, documented, and resolved.
     * `axp20x-battery`: Real-time telemetry reporting voltage (`4.008 V`), current draw (`-149 mA`), and capacity (`87%`).
     * `axp20x-usb` & `axp22x-ac`: Online detection for external chargers.
   * Physical power button (`axp20x-pek`) registered as an input device (`/dev/input/event1`).
+
+### Finding 41: Absence of On-Board Bluetooth Hardware (Ampak AP6181 vs AP6210)
+* **Investigation:** The tablet's wireless module was evaluated for Bluetooth support over `uart1`.
+* **Hardware Verification:**
+  1. The stock Android firmware configuration (`nvram_ap6181.txt` and `fw_bcm40181a2.bin`) confirms the physical module installed on the PCB is an **Ampak AP6181**, not an AP6210.
+  2. The AP6181 contains only the Broadcom BCM43362 (802.11 b/g/n Wi-Fi over SDIO) without Bluetooth circuitry.
+  3. The stock FEX script (`easypad_t8e.fex` and sysfs dump) explicitly defines `[bt_para]` with `bt_used = 0` and unassigned UART/wake/reset GPIOs.
+  4. The factory Android operating system (`init.sun6i.rc`, `build.prop`) had no Bluetooth services, drivers, or daemon configured.
+  5. Retail specifications for the Exper Easypad 8 (T8E) confirm Bluetooth was not included in this model.
+* **Alternative:** Standard USB Bluetooth dongles work plug-and-play via USB OTG using the active kernel USB host stack (`ehci-platform` / `musb-sunxi`) and `btusb`.
