@@ -18,11 +18,11 @@ BROM → boot0 → U-Boot (LCD/SPL) → Linux (Mainline 7.2) → Alpine Linux �
                                                                ↳ usb0 (172.16.42.1) → SSH root@172.16.42.1 [OK]
 ```
 
-A total of 39 technical findings were diagnosed, documented, and resolved.
+A total of 40 technical findings were diagnosed, documented, and resolved.
 
 ---
 
-## Findings 1 to 39
+## Findings 1 to 40
 
 ### Finding 1: ARM32 HighMem & DTB Relocation Conflict
 * **Mechanism:** By default, U-Boot's `bootz` relocates the Flattened Device Tree (FDT) to the top of accessible physical RAM (`0x7fbe0000` / ~1020 MB on 1 GB boards).
@@ -193,3 +193,13 @@ A total of 39 technical findings were diagnosed, documented, and resolved.
   * Speaker Power Amplifier enable (`audio_pa_ctrl`): FEX linear GPIO 185 $\rightarrow$ **`PL4`** (`<&r_pio 0 4 GPIO_ACTIVE_HIGH>`). Configured as `allwinner,pa-gpios` on the codec node.
 * **Audio Routing:** Configured `"Headphone", "HP"`, `"Speaker", "LINEOUT"`, `"MIC1", "Mic"`, `"MIC2", "Headset Mic"`.
 * **Result:** ALSA card `#0: A31 Audio Codec` registered with `/dev/snd/pcmC0D0p` (stereo playback) and `/dev/snd/pcmC0D0c` (microphone capture). Playback validated via `speaker-test` (48 kHz 16-bit stereo PCM). ALSA volume and routing state persisted via `alsactl store`.
+
+### Finding 40: PMIC NMI Interrupt, Battery Fuel Gauge & Power Button (`axp20x-battery`, `axp20x-pek`)
+* **Mechanism:**
+  * Re-enabled the NMI interrupt (`interrupt-parent = <&r_intc>`, `interrupts = <GIC_SPI 32 IRQ_TYPE_LEVEL_LOW>`) on `&axp22x` now that P2WI communication at `0x68` is established.
+  * Added DT aliases (`aliases { mmc0 = &mmc0; mmc1 = &mmc1; };`) to prevent probe race conditions where SDIO WiFi probing before SD card swapped root device from `/dev/mmcblk0p2` to `/dev/mmcblk1p2`.
+* **Result:**
+  * Sub-devices registered under `/sys/class/power_supply/`:
+    * `axp20x-battery`: Real-time telemetry reporting voltage (`4.008 V`), current draw (`-149 mA`), and capacity (`87%`).
+    * `axp20x-usb` & `axp22x-ac`: Online detection for external chargers.
+  * Physical power button (`axp20x-pek`) registered as an input device (`/dev/input/event1`).

@@ -33,7 +33,7 @@ Internal NAND/eMMC flash remains completely untouched; the entire system boots c
 | :--- | :--- | :--- | :--- |
 | **BROM & SPL** | Allwinner boot0 / U-Boot SPL | **Working** | Boots reliably from MicroSD |
 | **U-Boot** | Mainline U-Boot 2024+ | **Working** | PSCI, Non-Secure mode, SimpleFB video |
-| **PMIC (AXP221s)** | `axp20x-i2c` / `axp20x-regulator` | **Working** | Connected via P2WI @ 0x68; DLDO1/2/4 powered |
+| **PMIC & Fuel Gauge** | `axp20x` MFD / battery / ac / usb | **Working** | P2WI @ 0x68 + NMI IRQ; battery capacity, voltage, USB/AC sensing, PEK power key |
 | **Serial Console** | Synopsys DW APB UART (`ttyS0`) | **Working** | Earlycon + interactive getty shell |
 | **MicroSD Storage** | `sunxi-mmc` (`mmc0`) | **Working** | Rootfs mounted on `mmcblk0p2` |
 | **USB Gadget** | `musb-sunxi` + `g_ether` (`usb0`)| **Working** | CDC Ethernet / RNDIS (172.16.42.1/24) |
