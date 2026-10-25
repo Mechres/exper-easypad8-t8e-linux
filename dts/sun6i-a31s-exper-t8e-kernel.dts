@@ -40,11 +40,17 @@
 	/delete-property/ operating-points;
 };
 
-/* AXP221 PMIC is connected via P2WI at 0x68 (defined in sun6i-reference-design-tablet.dtsi).
- * Delete interrupts property to run in safe regulator-only cells mode. */
-&axp22x {
-	/delete-property/ interrupts;
-	/delete-property/ interrupt-parent;
+/* AXP221 PMIC is connected via P2WI at 0x68 with NMI interrupt. */
+&battery_power_supply {
+	status = "okay";
+};
+
+&usb_power_supply {
+	status = "okay";
+};
+
+&ac_power_supply {
+	status = "okay";
 };
 
 &i2c1 {
