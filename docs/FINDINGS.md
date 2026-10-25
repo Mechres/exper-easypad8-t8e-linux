@@ -243,3 +243,16 @@ A total of 40 technical findings were diagnosed, documented, and resolved.
   * Live sampling confirmed valid gravitational vector:
     * $X \approx 860$, $Y \approx -48$, $Z \approx -568$ at scale $0.009806\text{ m/s}^2$
     * Euclidean magnitude: $\sqrt{X^2 + Y^2 + Z^2} \times \text{scale} \approx 10.1\text{ m/s}^2 \approx 1.0\text{ g}$.
+
+### Finding 44: Automated Wi-Fi Association, DHCP & Internet Connectivity
+* **Mechanism:** Configured WPA supplicant and OpenRC network services for automated connection on boot.
+* **Network Credentials:** Configured `/etc/wpa_supplicant/wpa_supplicant.conf` with WPA-PSK authentication.
+* **Permissions:** Fixed directory permissions on `/var` and symlink `/var/run` to satisfy OpenRC `checkpath` security validation (`root:root`).
+* **Services Enabled:**
+  * `wpa_supplicant`: Automatically associates with access point on boot (`wpa_state=COMPLETED`, WPA2-PSK CCMP).
+  * `net.wlan0`: Built custom OpenRC service in `default` runlevel running `udhcpc` in background lease renewal mode.
+* **Verification:**
+  * Interface assigned local IP: `192.168.10.103/24` with default gateway `192.168.10.1`.
+  * Real-world air latency: ~37ms to `8.8.8.8`, ~66ms to `google.com`.
+  * Direct SSH access verified over local WLAN: `ssh root@192.168.10.103`.
+  * Package manager `apk update` synchronized 22,694 Alpine packages directly over Wi-Fi.
