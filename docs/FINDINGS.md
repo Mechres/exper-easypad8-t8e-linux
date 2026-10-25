@@ -18,11 +18,11 @@ BROM → boot0 → U-Boot (LCD/SPL) → Linux (Mainline 7.2) → Alpine Linux �
                                                                ↳ usb0 (172.16.42.1) → SSH root@172.16.42.1 [OK]
 ```
 
-A total of 38 technical findings were diagnosed, documented, and resolved.
+A total of 39 technical findings were diagnosed, documented, and resolved.
 
 ---
 
-## Findings 1 to 38
+## Findings 1 to 39
 
 ### Finding 1: ARM32 HighMem & DTB Relocation Conflict
 * **Mechanism:** By default, U-Boot's `bootz` relocates the Flattened Device Tree (FDT) to the top of accessible physical RAM (`0x7fbe0000` / ~1020 MB on 1 GB boards).
@@ -186,3 +186,10 @@ A total of 38 technical findings were diagnosed, documented, and resolved.
   * Backlight enable: `PA25` must be driven HIGH (`CONFIG_VIDEO_LCD_BL_EN="PA25"`).
   * Backlight PWM: `PH13` muxed to `PWM0` (50 kHz, active high).
 * **Implementation:** Built [`exper-backlight`](../scripts/exper-backlight.c) and configured an OpenRC startup service ([`01-backlight.start`](../rootfs/alpine/etc/local.d/01-backlight.start)) to power the panel and enable backlight on boot, bringing up the Alpine Linux login prompt on screen.
+
+### Finding 39: Internal Audio Codec Bring-Up (`sun6i-a31-codec`)
+* **Mechanism:** Allwinner A31s includes an on-chip analog audio codec at `0x01c22c00` paired with digital audio DMA channel 15.
+* **Pin Routing:**
+  * Speaker Power Amplifier enable (`audio_pa_ctrl`): FEX linear GPIO 185 $\rightarrow$ **`PL4`** (`<&r_pio 0 4 GPIO_ACTIVE_HIGH>`). Configured as `allwinner,pa-gpios` on the codec node.
+* **Audio Routing:** Configured `"Headphone", "HP"`, `"Speaker", "LINEOUT"`, `"MIC1", "Mic"`, `"MIC2", "Headset Mic"`.
+* **Result:** ALSA card `#0: A31 Audio Codec` registered with `/dev/snd/pcmC0D0p` (stereo playback) and `/dev/snd/pcmC0D0c` (microphone capture). Playback validated via `speaker-test` (48 kHz 16-bit stereo PCM). ALSA volume and routing state persisted via `alsactl store`.

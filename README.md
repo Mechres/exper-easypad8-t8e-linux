@@ -42,8 +42,8 @@ Internal NAND/eMMC flash remains completely untouched; the entire system boots c
 | **Touchscreen** | `goodix` driver (`input0`) | **Working** | Event reports validated via evtest |
 | **Sensors** | `st_lis3dh` I2C driver | **Detected** | Probed on I2C2 @ 0x19 |
 | **Display (LCD)**| SimpleFB (`/dev/fb0`) + `fbcon` | **Working** | 1024×768@60Hz single-channel LVDS; console login active |
+| **Audio** | Allwinner `sun4i-codec` (`sun6i-a31-codec`) | **Working** | Stereo DAC, Line Out (Speaker amp PL4), Headphone & Mic |
 | **Bluetooth** | `hci_uart` | *Planned* | Broadcom UART on uart1 |
-| **Audio** | Allwinner sun6i codec | *Planned* | Headphone jack & internal speaker |
 
 ---
 
