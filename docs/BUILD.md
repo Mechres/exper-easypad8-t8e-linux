@@ -111,5 +111,5 @@ This prepares:
 5. Connect via SSH:
    ```bash
    ssh root@172.16.42.1
-   # Password: root (or configured password)
+   # Password: exper
    ```

@@ -3,9 +3,9 @@
 **Hardware:** Exper Easypad 8 (Model T8E / `fiber_exper`)  
 **SoC:** Allwinner A31s (`sun6i`, 4× Cortex-A7 @ 1.2 GHz)  
 **RAM:** 1 GB DDR3 @ 432 MHz (ZQ 251)  
-**PMIC:** AXP221s via TWI1 (I2C1) @ 0x34 (P2WI unused on this board)  
+**PMIC:** AXP221s via P2WI @ 0x68 (switched from I2C to P2WI mode by U-Boot)  
 **Storage Target:** External MicroSD (`mmc0`), internal NAND untouched  
-**Display:** 1024×768 single-channel LVDS panel  
+**Display:** 1024×768 single-channel LVDS panel (PG12 power, PH13 PWM0, PA25 BL_EN)  
 **Target:** Minimal Alpine Linux booted from SD card → Android Auto terminal
 
 ---
@@ -18,11 +18,11 @@ BROM → boot0 → U-Boot (LCD/SPL) → Linux (Mainline 7.2) → Alpine Linux �
                                                                ↳ usb0 (172.16.42.1) → SSH root@172.16.42.1 [OK]
 ```
 
-A total of 32 technical findings were diagnosed, documented, and resolved.
+A total of 38 technical findings were diagnosed, documented, and resolved.
 
 ---
 
-## Findings 1 to 32
+## Findings 1 to 38
 
 ### Finding 1: ARM32 HighMem & DTB Relocation Conflict
 * **Mechanism:** By default, U-Boot's `bootz` relocates the Flattened Device Tree (FDT) to the top of accessible physical RAM (`0x7fbe0000` / ~1020 MB on 1 GB boards).
@@ -144,3 +144,45 @@ A total of 32 technical findings were diagnosed, documented, and resolved.
 
 ### Finding 32: System Time & RTC Initialization
 * **Details:** Tablet lacks a functional RTC battery, causing clock to reset to 1970 on reboot. Implemented automatic time synchronization over USB SSH session.
+
+### Finding 33: AXP221s Communication Bus (P2WI Mode @ 0x68 vs I2C1 @ 0x34)
+* **Background:** Vendor FEX specified `pmu_twi_id = 1` and `pmu_twi_addr = 0x34`, suggesting I2C1 communication.
+* **Mechanism:** In reality, the A31s U-Boot bootloader switches the AXP221s from standard I2C into P2WI (Push-Pull 2-Wire Interface) mode at address `0x68` (controller at `0x01f03400`).
+* **Fix:** Enabled `&p2wi { status = "okay"; }` in the board Device Tree. The `i2c-sunxi-p2wi` driver probed successfully (`axp20x-i2c 2-0068: AXP20x variant AXP221 found`), establishing full communication with the PMIC and registering all power rails (`reg_dldo1`, `reg_dldo2`, `reg_dldo4`, `reg_dc1sw`, etc.).
+
+### Finding 34: Allwinner Linear GPIO Bank Offset Rosetta Stone
+* **Root Cause:** Allwinner vendor kernel drivers use a flat linear pin numbering scheme in FEX configurations.
+* **Discovery:** Reverse-engineered `arch/arm/mach-sun6i/gpio/gpio_init.c` from the stock Android `zImage` (struct table at `0x8243b8`):
+  * `GPA: 0 (28)`, `GPB: 30 (8)`, `GPC: 40 (28)`, `GPD: 70 (28)`, `GPE: 100 (17)`, `GPF: 119 (6)`, `GPG: 127 (19)`, `GPH: 148 (31)`, `GPL: 181 (9)`, `GPM: 192 (8)`
+* **Decoded Pin Assignments:**
+  * WiFi `WL_REG_ON` (FEX 186): `186 - 181 = 5` $\rightarrow$ **`PL5`** (`<&r_pio 0 5 GPIO_ACTIVE_LOW>`)
+  * WiFi `WL_HOST_WAKE` (FEX 187): `187 - 181 = 6` $\rightarrow$ **`PL6`** (`<&r_pio 0 6 ...>`)
+  * Backlight PWM (FEX 161): `161 - 148 = 13` $\rightarrow$ **`PH13`** (`SUN6I_GPH_PWM` / `PWM0`)
+  * LCD Panel Power (FEX 139): `139 - 127 = 12` $\rightarrow$ **`PG12`**
+
+### Finding 35: Broadcom AP6210 / BCM43362 SDIO WiFi Bring-Up
+* **Mechanism:** The tablet contains an Ampak AP6210 module containing a Broadcom BCM43362 SDIO WLAN core and BCM20710 Bluetooth core.
+* **Prerequisites:**
+  1. Main power: `reg_dldo1` (3.3V)
+  2. I/O power: `reg_dldo2` (1.8V, powers Port G pins PG0-PG5)
+  3. Clock power: `reg_dldo4` (3.3V)
+  4. LPO sleep clock: 32.768 kHz fanout from RTC (`0x01f00000`) routed to `PM7` (`function = "rtc"`)
+  5. Reset sequence: `mmc-pwrseq-simple` on `PL5` with `post-power-on-delay-ms = <200>`
+* **Result:** `mmc1` successfully enumerates the card at `0x02d0:0xa962` (BCM43362). The `brcmfmac` driver loads firmware `brcm/brcmfmac43362-sdio.bin` and registers `wlan0`. Live air scanning (`iw dev wlan0 scan`) verified.
+
+### Finding 36: Kernel NULL Pointer Dereference in `clk_pm_runtime_get` (PID 38 `sugov:0`)
+* **Mechanism:** During CPU frequency scaling, the schedutil governor (`sugov:0`) invoked `clk_pm_runtime_get()`.
+* **Root Cause:** In `drivers/clk/clk.c`, `clk_pm_runtime_get()` invoked `pm_runtime_resume_and_get(core->dev)`. Allwinner CCU clock providers do not assign a `struct device` (`core->dev == NULL`), causing a NULL pointer dereference of `dev->power` at offset `0x119`.
+* **Fix:** Added NULL check `if (!core->rpm_enabled || !core->dev) return 0;` in `clk_pm_runtime_get()` and `clk_pm_runtime_put()`.
+
+### Finding 37: Upstream SimpleFB Device Tree Population Bug (`drivers/of/platform.c`)
+* **Mechanism:** In `drivers/of/platform.c`, `of_platform_default_populate_init()` used `node = of_get_compatible_child(of_chosen, "simple-framebuffer")`.
+* **Root Cause:** `of_get_compatible_child()` returns the first child matching the compatible string without checking whether the node is enabled (`status = "okay"`). In `sun6i-a31.dtsi`, `framebuffer-lcd0-hdmi` (`status = "disabled"`) precedes `framebuffer-lcd0` in `/chosen`. The kernel attempted to populate the disabled HDMI node, failed, and completely skipped the active LCD framebuffer.
+* **Fix:** Replaced single lookup with `for_each_child_of_node()` checking `of_device_is_available()`.
+
+### Finding 38: LCD Panel Power & Hardware Backlight PWM Automation
+* **Mechanism:**
+  * Panel power: `PG12` must be driven HIGH to supply power to the LVDS panel electronics (`CONFIG_VIDEO_LCD_POWER="PG12"` in U-Boot).
+  * Backlight enable: `PA25` must be driven HIGH (`CONFIG_VIDEO_LCD_BL_EN="PA25"`).
+  * Backlight PWM: `PH13` muxed to `PWM0` (50 kHz, active high).
+* **Implementation:** Built [`exper-backlight`](../scripts/exper-backlight.c) and configured an OpenRC startup service ([`01-backlight.start`](../rootfs/alpine/etc/local.d/01-backlight.start)) to power the panel and enable backlight on boot, bringing up the Alpine Linux login prompt on screen.

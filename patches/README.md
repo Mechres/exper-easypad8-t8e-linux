@@ -29,3 +29,5 @@ Applied against mainline Linux (6.12+ / 7.x):
    Adds board Device Tree `arch/arm/boot/dts/allwinner/sun6i-a31s-exper-t8e.dts` and Makefile target.
 6. `0006-clk-Avoid-NULL-pointer-dereference-in-clk_pm_runtime.patch`:
    Guards against NULL `core->dev` in `clk_pm_runtime_get()` and `clk_pm_runtime_put()` to avoid crash on clock providers lacking associated struct device (e.g. Allwinner CCU).
+7. `0007-of-platform-Populate-first-available-simple-framebu.patch`:
+   Iterates over `/chosen` nodes to bind the first available `simple-framebuffer` instead of stopping at disabled template nodes.
