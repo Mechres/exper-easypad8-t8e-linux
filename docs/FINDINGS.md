@@ -256,3 +256,14 @@ A total of 40 technical findings were diagnosed, documented, and resolved.
   * Real-world air latency: ~37ms to `8.8.8.8`, ~66ms to `google.com`.
   * Direct SSH access verified over local WLAN: `ssh root@192.168.10.103`.
   * Package manager `apk update` synchronized 22,694 Alpine packages directly over Wi-Fi.
+
+### Finding 45: Power Management & Physical Power Button Screen Toggle Daemon
+* **Investigation:** Evaluated power states (`freeze`, `mem_sleep: [s2idle]`) and physical button events.
+* **Findings:**
+  1. Low-power idle / `freeze` state executes cleanly at kernel/SoC level with RTC wakeup (`rtcwake`).
+  2. However, SDIO Wi-Fi desynchronizes on raw sleep without explicit interface down / up teardown, and MUSB gadget requires soft-reconnect.
+  3. Active operational power consumption is exceptionally low: $195\text{ mA}$ at $3.95\text{V}$ ($\approx 0.77\text{ W}$) with LCD active at 80% brightness and Wi-Fi associated.
+* **Implementation:**
+  * Enhanced [`exper-backlight`](../scripts/exper-backlight.c) with brightness scaling ($0-100\%$) and clean low-power standby mode (`off` / `on`), shutting off PWM, `PA25` backlight enable, and `PG12` panel electronics.
+  * Developed [`exper-powerd`](../scripts/exper-powerd.c) background daemon listening on `/dev/input/by-path/platform-1f03400.i2c-platform-axp221-pek-event`.
+  * Single-press of the physical power button toggles the LCD panel and backlight off / on instantly, providing real tablet power-key behavior and maximizing battery endurance.
