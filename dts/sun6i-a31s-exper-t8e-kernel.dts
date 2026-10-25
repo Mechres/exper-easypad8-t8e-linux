@@ -162,3 +162,15 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&clko_pm7_pin>;
 };
+
+&codec {
+	allwinner,audio-routing =
+		"Headphone", "HP",
+		"Speaker", "LINEOUT",
+		"MIC1", "Mic",
+		"MIC2", "Headset Mic",
+		"Mic", "MBIAS",
+		"Headset Mic", "HBIAS";
+	allwinner,pa-gpios = <&r_pio 0 4 GPIO_ACTIVE_HIGH>; /* PL4 */
+	status = "okay";
+};
