@@ -1,0 +1,28 @@
+From 904eb98a86b1a9f562ae05578066f720745ccaa3 Mon Sep 17 00:00:00 2001
+From: Mechres <164776284+Mechres@users.noreply.github.com>
+Date: Sun, 25 Oct 2026 15:52:35 +0300
+Subject: [PATCH 1/5] ARM: timex: Fix inverted get_cycles() return value
+
+delay_read_timer() returns true on success, meaning get_cycles()
+previously returned 0 whenever the timer read succeeded. Inverting
+the condition properly yields the cycle count.
+---
+ arch/arm/include/asm/timex.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm/include/asm/timex.h b/arch/arm/include/asm/timex.h
+index 94e40c19c..4d31eab9d 100644
+--- a/arch/arm/include/asm/timex.h
++++ b/arch/arm/include/asm/timex.h
+@@ -13,7 +13,7 @@ typedef unsigned long cycles_t;
+ // Temporary workaround until timex.h is cleaned up
+ bool delay_read_timer(unsigned long *t);
+ 
+-#define get_cycles()	({ cycles_t c; delay_read_timer(&c) ? 0 : c; })
++#define get_cycles()	({ cycles_t c; delay_read_timer(&c) ? c : 0; })
+ #define random_get_entropy() (((unsigned long)get_cycles()) ?: random_get_entropy_fallback())
+ 
+ #endif
+-- 
+2.56.0
+

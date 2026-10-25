@@ -1,0 +1,127 @@
+++++++++++++++++++++++++++__sysfs_dump_mainkey++++++++++++++++++++++++++
+    name:      nand0_para
+    sub_key:   name           type      value
+               nand0_we       gpio      (gpio:  40, mul: 2, pull -1, drv -1, data -1)
+               nand0_ale      gpio      (gpio:  41, mul: 2, pull -1, drv -1, data -1)
+               nand0_cle      gpio      (gpio:  42, mul: 2, pull -1, drv -1, data -1)
+               nand0_ce1      gpio      (gpio:  43, mul: 2, pull -1, drv -1, data -1)
+               nand0_ce0      gpio      (gpio:  44, mul: 2, pull -1, drv -1, data -1)
+               nand0_nre      gpio      (gpio:  45, mul: 2, pull -1, drv -1, data -1)
+               nand0_rb0      gpio      (gpio:  46, mul: 2, pull -1, drv -1, data -1)
+               nand0_rb1      gpio      (gpio:  47, mul: 2, pull -1, drv -1, data -1)
+               nand0_d0       gpio      (gpio:  48, mul: 2, pull -1, drv -1, data -1)
+               nand0_d1       gpio      (gpio:  49, mul: 2, pull -1, drv -1, data -1)
+               nand0_d2       gpio      (gpio:  50, mul: 2, pull -1, drv -1, data -1)
+               nand0_d3       gpio      (gpio:  51, mul: 2, pull -1, drv -1, data -1)
+               nand0_d4       gpio      (gpio:  52, mul: 2, pull -1, drv -1, data -1)
+               nand0_d5       gpio      (gpio:  53, mul: 2, pull -1, drv -1, data -1)
+               nand0_d6       gpio      (gpio:  54, mul: 2, pull -1, drv -1, data -1)
+               nand0_d7       gpio      (gpio:  55, mul: 2, pull -1, drv -1, data -1)
+               nand0_ce2      gpio      (gpio:  65, mul: 2, pull -1, drv -1, data -1)
+               nand0_ce3      gpio      (gpio:  66, mul: 2, pull -1, drv -1, data -1)
+               nand0_ndqs     gpio      (gpio:  64, mul: 2, pull -1, drv -1, data -1)
+               nand0_used     int       1
+               nand_support_2chint       1
+--------------------------__sysfs_dump_mainkey--------------------------
+
+++++++++++++++++++++++++++__sysfs_dump_mainkey++++++++++++++++++++++++++
+    name:      nand1_para
+    sub_key:   name           type      value
+               nand1_we       gpio      (gpio: 148, mul: 2, pull -1, drv -1, data -1)
+               nand1_ale      gpio      (gpio: 149, mul: 2, pull -1, drv -1, data -1)
+               nand1_cle      gpio      (gpio: 150, mul: 2, pull -1, drv -1, data -1)
+               nand1_ce1      gpio      (gpio: 151, mul: 2, pull -1, drv -1, data -1)
+               nand1_ce0      gpio      (gpio: 152, mul: 2, pull -1, drv -1, data -1)
+               nand1_nre      gpio      (gpio: 153, mul: 2, pull -1, drv -1, data -1)
+               nand1_rb0      gpio      (gpio: 154, mul: 2, pull -1, drv -1, data -1)
+               nand1_rb1      gpio      (gpio: 155, mul: 2, pull -1, drv -1, data -1)
+               nand1_d0       gpio      (gpio:  56, mul: 3, pull -1, drv -1, data -1)
+               nand1_d1       gpio      (gpio:  57, mul: 3, pull -1, drv -1, data -1)
+               nand1_d2       gpio      (gpio:  58, mul: 3, pull -1, drv -1, data -1)
+               nand1_d3       gpio      (gpio:  59, mul: 3, pull -1, drv -1, data -1)
+               nand1_d4       gpio      (gpio:  60, mul: 3, pull -1, drv -1, data -1)
+               nand1_d5       gpio      (gpio:  61, mul: 3, pull -1, drv -1, data -1)
+               nand1_d6       gpio      (gpio:  62, mul: 3, pull -1, drv -1, data -1)
+               nand1_d7       gpio      (gpio:  63, mul: 3, pull -1, drv -1, data -1)
+               nand1_ce2      gpio      (gpio: 177, mul: 2, pull -1, drv -1, data -1)
+               nand1_ce3      gpio      (gpio: 178, mul: 2, pull -1, drv -1, data -1)
+               nand1_ndqs     gpio      (gpio: 156, mul: 2, pull -1, drv -1, data -1)
+               nand1_used     int       1
+--------------------------__sysfs_dump_mainkey--------------------------
+
+++++++++++++++++++++++++++__sysfs_dump_mainkey++++++++++++++++++++++++++
+    name:      i2s_para
+    sub_key:   name           type      value
+               i2s_bclk       gpio      (gpio:  31, mul: 2, pull 1, drv -1, data -1)
+               i2s_lrclk      gpio      (gpio:  32, mul: 2, pull 1, drv -1, data -1)
+               i2s_dout0      gpio      (gpio:  33, mul: 2, pull 1, drv -1, data -1)
+               i2s_din        gpio      (gpio:  37, mul: 2, pull 1, drv -1, data -1)
+               audio_format   int       4
+               signal_inversionint       3
+               over_sample_rateint       256
+               sample_resolutionint       16
+               word_select_sizeint       32
+               pcm_sync_periodint       256
+               msb_lsb_first  int       0
+               sign_extend    int       0
+               slot_index     int       0
+               slot_width     int       16
+               frame_width    int       1
+               tx_data_mode   int       0
+               rx_data_mode   int       0
+               i2s_mclk       invalid type!
+               i2s_used       int       0
+               i2s_channel    int       2
+               i2s_master     int       1
+               i2s_dout1      invalid type!
+               i2s_dout2      invalid type!
+               i2s_dout3      invalid type!
+               i2s_select     int       0
+--------------------------__sysfs_dump_mainkey--------------------------
+
+++++++++++++++++++++++++++__sysfs_dump_mainkey++++++++++++++++++++++++++
+    name:      card0_boot_para
+    sub_key:   name           type      value
+               sdc_d1         gpio      (gpio: 119, mul: 2, pull 1, drv -1, data -1)
+               sdc_d0         gpio      (gpio: 120, mul: 2, pull 1, drv -1, data -1)
+               sdc_clk        gpio      (gpio: 121, mul: 2, pull 1, drv -1, data -1)
+               sdc_cmd        gpio      (gpio: 122, mul: 2, pull 1, drv -1, data -1)
+               sdc_d3         gpio      (gpio: 123, mul: 2, pull 1, drv -1, data -1)
+               sdc_d2         gpio      (gpio: 124, mul: 2, pull 1, drv -1, data -1)
+               card_ctrl      int       0
+               card_high_speedint       1
+               card_line      int       4
+--------------------------__sysfs_dump_mainkey--------------------------
+
+++++++++++++++++++++++++++__sysfs_dump_mainkey++++++++++++++++++++++++++
+    name:      card2_boot_para
+    sub_key:   name           type      value
+               sdc_cmd        gpio      (gpio:  46, mul: 3, pull 1, drv -1, data -1)
+               sdc_clk        gpio      (gpio:  47, mul: 3, pull 1, drv -1, data -1)
+               sdc_d0         gpio      (gpio:  48, mul: 3, pull 1, drv -1, data -1)
+               sdc_d1         gpio      (gpio:  49, mul: 3, pull 1, drv -1, data -1)
+               sdc_d2         gpio      (gpio:  50, mul: 3, pull 1, drv -1, data -1)
+               sdc_d3         gpio      (gpio:  51, mul: 3, pull 1, drv -1, data -1)
+               card_ctrl      int       2
+               card_high_speedint       1
+               card_line      int       4
+--------------------------__sysfs_dump_mainkey--------------------------
+
+++++++++++++++++++++++++++__sysfs_dump_mainkey++++++++++++++++++++++++++
+    name:      3g_para
+    sub_key:   name           type      value
+               bb_pwr_on      gpio      (gpio: 184, mul: 1, pull -1, drv -1, data 0)
+               bb_wake        gpio      (gpio: 194, mul: 1, pull -1, drv -1, data 0)
+               bb_rst         gpio      (gpio: 195, mul: 1, pull -1, drv -1, data 0)
+               bb_host_wake   gpio      (gpio: 192, mul: 6, pull 1, drv -1, data 0)
+               bb_name        string    "em55"
+               bb_dldo        string    "axp22_dldo4"
+               bb_vbat        invalid type!
+               3g_used        int       0
+               3g_usbc_num    int       0
+               3g_usbc_type   int       0
+               3g_uart_num    int       1
+               bb_on          invalid type!
+               bb_rf_dis      invalid type!
+--------------------------__sysfs_dump_mainkey--------------------------
+

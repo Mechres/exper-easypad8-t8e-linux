@@ -1,0 +1,620 @@
+; Exper Easypad 8 (Model T8E) - Extracted FEX Configuration
+; Extracted live via sysfs script_dump from real hardware
+
+[product]
+version = "100"
+machine = "EasyPad8"
+
+[platform]
+eraseflag = 1
+
+[target]
+boot_clock = 1008
+storage_type = 0
+
+[clock]
+pll3 = 297
+pll4 = 300
+pll6 = 600
+pll7 = 297
+pll8 = 360
+pll9 = 297
+pll10 = 702
+
+[dram_para]
+dram_clk = 432
+dram_type = 3
+dram_zq = 251
+dram_odt_en = 0
+dram_para1 = 284427264
+dram_para2 = 4353
+dram_mr0 = 6736
+dram_mr1 = 4
+dram_mr2 = 24
+dram_mr3 = 0
+dram_tpr0 = 0
+dram_tpr1 = -2147481600
+dram_tpr2 = 967246144
+dram_tpr3 = -1600985268
+dram_tpr4 = 692634121
+dram_tpr5 = -1992015316
+dram_tpr6 = 805471360
+dram_tpr7 = 2765463
+dram_tpr8 = 84103080
+dram_tpr9 = 56841176
+dram_tpr10 = 0
+dram_tpr11 = 0
+dram_tpr12 = 0
+dram_tpr13 = -2147417336
+
+[wakeup_src_para]
+wakeup_wifi = port:PF27<2><default><default><0>
+cpu_freq = 48
+pll_ratio = 273
+dram_selfresh_en = 1
+dram_freq = 36
+cpu_en = 0
+
+[twi0_para]
+twi_scl = port:PF02<2><default><default><default>
+twi_sda = port:PF03<2><default><default><default>
+twi_used = 1
+
+[twi1_para]
+twi_scl = port:PF04<2><default><default><default>
+twi_sda = port:PF05<2><default><default><default>
+twi_used = 1
+
+[twi2_para]
+twi_scl = port:PF06<2><default><default><default>
+twi_sda = port:PF07<2><default><default><default>
+twi_used = 1
+
+[twi3_para]
+twi_scl = port:PE09<2><default><default><default>
+twi_sda = port:PE10<2><default><default><default>
+twi_used = 1
+
+[uart_para]
+uart_debug_tx = port:PF08<2><1><default><default>
+uart_debug_rx = port:PF09<2><1><default><default>
+uart_debug_port = 0
+
+[uart_para0]
+uart_tx = port:PF08<2><1><default><default>
+uart_rx = port:PF09<2><1><default><default>
+uart_type = 2
+uart_used = 1
+uart_port = 0
+
+[uart_para1]
+uart_tx = port:PA04<4><1><default><default>
+uart_rx = port:PA05<4><1><default><default>
+uart_rts = port:PA06<4><1><default><default>
+uart_cts = port:PA07<4><1><default><default>
+uart_port = 1
+uart_type = 4
+uart_used = 0
+
+[uart_para2]
+uart_tx = port:PE05<2><1><default><default>
+uart_rx = port:PE06<2><1><default><default>
+uart_rts = port:PE07<2><1><default><default>
+uart_cts = port:PE08<2><1><default><default>
+uart_port = 2
+uart_type = 4
+uart_used = 0
+
+[jtag_para]
+jtag_ms = port:PE29<3><default><default><default>
+jtag_ck = port:PE30<3><default><default><default>
+jtag_do = port:PE31<3><default><default><default>
+jtag_di = port:PF00<3><default><default><default>
+jtag_enable = 1
+
+[spi0_para]
+spi_cs0 = port:PC03<3><1><default><default>
+spi_sclk = port:PB10<3><default><default><default>
+spi_mosi = port:PB08<3><default><default><default>
+spi_miso = port:PB09<3><default><default><default>
+spi_used = 0
+spi_cs_bitmap = 1
+
+[spi1_para]
+spi_cs1 = port:PE11<2><1><default><default>
+spi_cs0 = port:PE12<2><1><default><default>
+spi_sclk = port:PE13<2><default><default><default>
+spi_mosi = port:PE14<2><default><default><default>
+spi_miso = port:PE15<2><default><default><default>
+spi_cs_bitmap = 1
+spi_used = 0
+
+[spi2_para]
+spi_cs0 = port:PE29<2><default><default><default>
+spi_sclk = port:PE30<2><default><default><default>
+spi_mosi = port:PE31<2><default><default><default>
+spi_miso = port:PF00<2><default><default><default>
+spi_used = 0
+spi_cs_bitmap = 1
+
+[ctp_para]
+ctp_int_port = port:PA03<6><default><default><default>
+ctp_wakeup = port:PA02<1><default><default><1>
+ctp_twi_id = 1
+ctp_twi_addr = 93
+ctp_screen_max_x = 1024
+ctp_screen_max_y = 768
+ctp_revert_x_flag = 0
+ctp_revert_y_flag = 0
+ctp_exchange_x_y_flag = 1
+ctp_used = 1
+ctp_name = "gt911_m805q5"
+
+[motor_para]
+motor_shake = port:PG13<1><default><default><1>
+motor_used = 0
+
+[disp_init]
+disp_init_enable = 1
+disp_mode = 0
+screen0_output_type = 1
+screen0_output_mode = 4
+screen1_output_type = 1
+screen1_output_mode = 4
+fb0_format = 10
+fb0_pixel_sequence = 0
+fb0_scaler_mode_enable = 0
+fb0_width = 0
+fb0_height = 0
+fb1_format = 10
+fb1_pixel_sequence = 0
+fb1_scaler_mode_enable = 0
+fb1_width = 0
+fb1_height = 0
+lcd0_backlight = 50
+lcd1_backlight = 50
+lcd0_bright = 50
+lcd0_contrast = 50
+lcd0_saturation = 57
+lcd0_hue = 50
+lcd1_bright = 50
+lcd1_contrast = 50
+lcd1_saturation = 57
+lcd1_hue = 50
+
+[lcd0_para]
+lcd_bl_en = port:PA25<1><0><default><1>
+lcd_power = port:PG12<1><0><default><1>
+lcd_pwm = port:PF01<2><0><default><default>
+lcdd0 = port:PC06<3><0><3><default>
+lcdd1 = port:PC07<3><0><3><default>
+lcdd2 = port:PC08<3><0><3><default>
+lcdd3 = port:PC09<3><0><3><default>
+lcdd4 = port:PC10<3><0><3><default>
+lcdd5 = port:PC11<3><0><3><default>
+lcdd6 = port:PC12<3><0><3><default>
+lcdd7 = port:PC13<3><0><3><default>
+lcdd8 = port:PC14<3><0><3><default>
+lcdd9 = port:PC15<3><0><3><default>
+lcd_bl_75_percent = 45
+lcd_bl_100_percent = 70
+lcd_hbp = 320
+lcd_ht = 1350
+lcd_hspw = 22
+lcd_vbp = 38
+lcd_vt = 810
+lcd_vspw = 8
+lcd_lvds_if = 0
+lcd_lvds_colordepth = 0
+lcd_lvds_mode = 0
+lcd_lvds_io_polarity = 0
+lcd_frm = 1
+lcd_io_phase = 0
+lcd_gamma_en = 0
+lcd_bright_curve_en = 1
+lcd_cmap_en = 0
+deu_mode = 0
+lcdgamma4iep = 22
+smart_color = 90
+lcd_used = 1
+lcd_if = 3
+lcd_driver_name = "default_lcd"
+lcd_x = 1024
+lcd_y = 768
+lcd_width = 162
+lcd_height = 121
+lcd_dclk_freq = 60
+lcd_pwm_freq = 50000
+lcd_pwm_pol = 1
+lcd_bl_0_percent = 4
+lcd_bl_25_percent = 16
+lcd_bl_50_percent = 27
+lcd_bl_min = 38
+
+[hdmi_para]
+hdmi_used = 1
+
+[camera_list_para]
+camera_list_para_used = 1
+ov7670 = 0
+gc0308 = 1
+gt2005 = 0
+hi704 = 0
+sp0838 = 0
+mt9m112 = 0
+mt9m113 = 0
+gc2035 = 1
+ov2655 = 0
+hi253 = 0
+gc0307 = 1
+mt9d112 = 0
+ov5640 = 0
+ov5647 = 0
+gc2015 = 0
+ov2643 = 0
+gc0329 = 0
+gc0328 = 1
+gc0309 = 0
+tvp5150 = 0
+s5k4ec = 0
+ov5650_mv9335 = 0
+siv121d = 0
+
+[mmc0_para]
+sdc_clk = port:PD25<2><1><2><default>
+sdc_cmd = port:PD26<2><1><2><default>
+sdc_d0 = port:PD24<2><1><2><default>
+sdc_d1 = port:PD23<2><1><2><default>
+sdc_d2 = port:PD28<2><1><2><default>
+sdc_d3 = port:PD27<2><1><2><default>
+sdc_det = port:PA08<6><1><2><default>
+sdc_detmode = 2
+sdc_buswidth = 4
+sdc_used = 1
+sdc_use_wp = 0
+sdc_isio = 0
+sdc_regulator = "none"
+
+[mmc1_para]
+sdc_clk = port:PD31<2><1><2><default>
+sdc_cmd = port:PE00<2><1><2><default>
+sdc_d0 = port:PE01<2><1><2><default>
+sdc_d1 = port:PE02<2><1><2><default>
+sdc_d2 = port:PE03<2><1><2><default>
+sdc_d3 = port:PE04<2><1><2><default>
+sdc_used = 1
+sdc_detmode = 4
+sdc_buswidth = 4
+sdc_use_wp = 0
+sdc_isio = 1
+sdc_regulator = "none"
+
+[mmc2_para]
+sdc_clk = port:PB15<3><1><2><default>
+sdc_cmd = port:PB14<3><1><2><default>
+sdc_d0 = port:PB16<3><1><2><default>
+sdc_d1 = port:PB17<3><1><2><default>
+sdc_d2 = port:PB18<3><1><2><default>
+sdc_d3 = port:PB19<3><1><2><default>
+sdc_d4 = port:PB20<3><1><2><default>
+sdc_d5 = port:PB21<3><1><2><default>
+sdc_d6 = port:PB22<3><1><2><default>
+sdc_d7 = port:PB23<3><1><2><default>
+emmc_rst = port:PC00<3><1><2><default>
+sdc_buswidth = 8
+sdc_used = 0
+sdc_detmode = 3
+sdc_use_wp = 0
+sdc_isio = 0
+sdc_regulator = "none"
+
+[mmc3_para]
+sdc_clk = port:PA10<2><1><2><default>
+sdc_cmd = port:PA09<2><1><2><default>
+sdc_d0 = port:PA11<2><1><2><default>
+sdc_d1 = port:PA12<2><1><2><default>
+sdc_d2 = port:PA13<2><1><2><default>
+sdc_d3 = port:PA14<2><1><2><default>
+sdc_used = 0
+sdc_detmode = 2
+sdc_buswidth = 4
+sdc_use_wp = 0
+sdc_isio = 0
+sdc_regulator = "none"
+
+[usbc0]
+usb_id_gpio = port:PA15<0><1><default><default>
+usb_drv_vbus_gpio = port:PG14<1><0><default><0>
+usb_restrict_gpio = port:PF14<1><0><default><0>
+usb_used = 1
+usb_det_vbus_gpio = "axp_ctrl"
+usb_port_type = 2
+usb_detect_type = 1
+usb_host_init_state = 0
+usb_restric_flag = 0
+usb_restric_voltage = 3550000
+usb_restric_capacity = 5
+
+[usbc1]
+usb_drv_vbus_gpio = port:PF15<1><0><default><0>
+usb_restrict_gpio = port:PF14<1><0><default><0>
+usb_detect_type = 0
+usb_used = 1
+usb_port_type = 1
+usb_host_init_state = 1
+usb_restric_flag = 0
+
+[usbc2]
+usb_used = 0
+usb_port_type = 1
+usb_detect_type = 0
+usb_host_init_state = 1
+usb_restric_flag = 0
+
+[usb_feature]
+vendor_id = 6353
+mass_storage_id = 1
+adb_id = 2
+manufacturer_name = ""
+product_name = "EasyPad_8"
+serial_number = "20080411"
+
+[audio_para]
+audio_pa_ctrl = port:PF25<1><default><default><0>
+audio_mute_ctrl = port:PA17<1><default><default><0>
+headphone_vol = 59
+earpiece_vol = 59
+cap_vol = 7
+pa_single_vol = 30
+pa_double_used = 1
+pa_double_vol = 31
+headphone_direct_used = 0
+headphone_mute_used = 0
+audio_used = 1
+audio_hp_ldo = "none"
+headset_mic_vol = 6
+main_mic_vol = 6
+
+[pmu_para]
+pmu_used = 1
+pmu_twi_addr = 52
+pmu_twi_id = 1
+pmu_irq_id = 0
+pmu_battery_rdc = 100
+pmu_battery_cap = 0
+pmu_batdeten = 1
+pmu_runtime_chgcur = 900
+pmu_earlysuspend_chgcur = 900
+pmu_suspend_chgcur = 1500
+pmu_shutdown_chgcur = 1500
+pmu_init_chgvol = 4200
+pmu_init_chgend_rate = 15
+pmu_init_chg_enabled = 1
+pmu_init_adc_freq = 800
+pmu_init_adcts_freq = 800
+pmu_init_chg_pretime = 70
+pmu_init_chg_csttime = 720
+pmu_batt_cap_correct = 1
+pmu_bat_regu_en = 0
+pmu_bat_para1 = 0
+pmu_bat_para2 = 0
+pmu_bat_para3 = 0
+pmu_bat_para4 = 0
+pmu_bat_para5 = 0
+pmu_bat_para6 = 0
+pmu_bat_para7 = 0
+pmu_bat_para8 = 0
+pmu_bat_para9 = 5
+pmu_bat_para10 = 8
+pmu_bat_para11 = 9
+pmu_bat_para12 = 10
+pmu_bat_para13 = 13
+pmu_bat_para14 = 16
+pmu_bat_para15 = 20
+pmu_bat_para16 = 33
+pmu_bat_para17 = 41
+pmu_bat_para18 = 46
+pmu_bat_para19 = 50
+pmu_bat_para20 = 53
+pmu_bat_para21 = 57
+pmu_bat_para22 = 61
+pmu_bat_para23 = 67
+pmu_bat_para24 = 73
+pmu_bat_para25 = 78
+pmu_bat_para26 = 84
+pmu_bat_para27 = 88
+pmu_bat_para28 = 92
+pmu_bat_para29 = 93
+pmu_bat_para30 = 94
+pmu_bat_para31 = 95
+pmu_bat_para32 = 100
+pmu_usbvol_limit = 0
+pmu_usbcur_limit = 0
+pmu_usbvol = 4000
+pmu_usbcur = 0
+pmu_usbvol_pc = 4400
+pmu_usbcur_pc = 500
+pmu_pwroff_vol = 3300
+pmu_pwron_vol = 2600
+pmu_pekoff_time = 6000
+pmu_pekoff_func = 0
+pmu_pekoff_en = 1
+pmu_peklong_time = 1000
+pmu_pekon_time = 1000
+pmu_pwrok_time = 64
+pmu_battery_warning_level1 = 3
+pmu_battery_warning_level2 = 0
+pmu_restvol_adjust_time = 60
+pmu_ocv_cou_adjust_time = 60
+pmu_chgled_func = 0
+pmu_chgled_type = 0
+pmu_vbusen_func = 1
+pmu_reset = 0
+pmu_IRQ_wakeup = 0
+pmu_hot_shutdowm = 1
+pmu_inshort = 0
+power_start = 0
+pmu_fake_power_off_enable = 0
+pmu_temp_protect_en = 0
+pmu_charge_ltf = 2261
+pmu_charge_htf = 388
+pmu_discharge_ltf = 3123
+pmu_discharge_htf = 237
+
+[power_sply]
+dcdc1_vol = 3000
+dcdc2_vol = 1200
+dcdc3_vol = 1260
+dcdc4_vol = 1240
+dcdc5_vol = 1500
+aldo2_vol = 1800
+aldo3_vol = 3000
+eldo3_vol = 1200
+
+[wifi_para]
+ap6xxx_wl_regon = port:PF26<1><default><default><0>
+ap6xxx_wl_host_wake = port:PF27<0><default><default><0>
+wifi_usbc_id = 1
+wifi_usbc_type = 1
+wifi_mod_sel = 1
+wifi_power = "axp22_dldo1"
+wifi_used = 1
+wifi_sdc_id = 1
+ap6xxx_gpio_power = "axp22_dldo2"
+ap6xxx_clk_power = "axp22_dldo4"
+
+[bt_para]
+bt_used = 0
+
+[gsensor_para]
+gsensor_int1 = port:PA09<6><1><default><default>
+gsensor_twi_id = 2
+gsensor_twi_addr = 28
+gsensor_used = 1
+
+[compass_para]
+compass_int = port:PA11<6><1><default><default>
+compass_twi_id = 2
+compass_twi_addr = 13
+compass_used = 0
+
+[gy_para]
+gy_int1 = port:PA10<6><1><default><default>
+gy_twi_id = 2
+gy_twi_addr = 106
+gy_used = 0
+
+[ir_para]
+ir_rx = port:PF25<2><1><default><default>
+ir_used = 0
+ir_power_key_code = 0
+
+[recovery_key]
+key_min = 28
+key_max = 32
+
+[card_boot]
+logical_start = 40960
+
+[nand0_para]
+nand0_we = port:PB08<2><default><default><default>
+nand0_ale = port:PB09<2><default><default><default>
+nand0_cle = port:PB10<2><default><default><default>
+nand0_ce1 = port:PB11<2><default><default><default>
+nand0_ce0 = port:PB12<2><default><default><default>
+nand0_nre = port:PB13<2><default><default><default>
+nand0_rb0 = port:PB14<2><default><default><default>
+nand0_rb1 = port:PB15<2><default><default><default>
+nand0_d0 = port:PB16<2><default><default><default>
+nand0_d1 = port:PB17<2><default><default><default>
+nand0_d2 = port:PB18<2><default><default><default>
+nand0_d3 = port:PB19<2><default><default><default>
+nand0_d4 = port:PB20<2><default><default><default>
+nand0_d5 = port:PB21<2><default><default><default>
+nand0_d6 = port:PB22<2><default><default><default>
+nand0_d7 = port:PB23<2><default><default><default>
+nand0_ce2 = port:PC01<2><default><default><default>
+nand0_ce3 = port:PC02<2><default><default><default>
+nand0_ndqs = port:PC00<2><default><default><default>
+nand0_used = 1
+nand_support_2ch = 1
+
+[nand1_para]
+nand1_we = port:PE20<2><default><default><default>
+nand1_ale = port:PE21<2><default><default><default>
+nand1_cle = port:PE22<2><default><default><default>
+nand1_ce1 = port:PE23<2><default><default><default>
+nand1_ce0 = port:PE24<2><default><default><default>
+nand1_nre = port:PE25<2><default><default><default>
+nand1_rb0 = port:PE26<2><default><default><default>
+nand1_rb1 = port:PE27<2><default><default><default>
+nand1_d0 = port:PB24<3><default><default><default>
+nand1_d1 = port:PB25<3><default><default><default>
+nand1_d2 = port:PB26<3><default><default><default>
+nand1_d3 = port:PB27<3><default><default><default>
+nand1_d4 = port:PB28<3><default><default><default>
+nand1_d5 = port:PB29<3><default><default><default>
+nand1_d6 = port:PB30<3><default><default><default>
+nand1_d7 = port:PB31<3><default><default><default>
+nand1_ce2 = port:PF17<2><default><default><default>
+nand1_ce3 = port:PF18<2><default><default><default>
+nand1_ndqs = port:PE28<2><default><default><default>
+nand1_used = 1
+
+[i2s_para]
+i2s_bclk = port:PA31<2><1><default><default>
+i2s_lrclk = port:PB00<2><1><default><default>
+i2s_dout0 = port:PB01<2><1><default><default>
+i2s_din = port:PB05<2><1><default><default>
+audio_format = 4
+signal_inversion = 3
+over_sample_rate = 256
+sample_resolution = 16
+word_select_size = 32
+pcm_sync_period = 256
+msb_lsb_first = 0
+sign_extend = 0
+slot_index = 0
+slot_width = 16
+frame_width = 1
+tx_data_mode = 0
+rx_data_mode = 0
+i2s_used = 0
+i2s_channel = 2
+i2s_master = 1
+i2s_select = 0
+
+[card0_boot_para]
+sdc_d1 = port:PD23<2><1><default><default>
+sdc_d0 = port:PD24<2><1><default><default>
+sdc_clk = port:PD25<2><1><default><default>
+sdc_cmd = port:PD26<2><1><default><default>
+sdc_d3 = port:PD27<2><1><default><default>
+sdc_d2 = port:PD28<2><1><default><default>
+card_ctrl = 0
+card_high_speed = 1
+card_line = 4
+
+[card2_boot_para]
+sdc_cmd = port:PB14<3><1><default><default>
+sdc_clk = port:PB15<3><1><default><default>
+sdc_d0 = port:PB16<3><1><default><default>
+sdc_d1 = port:PB17<3><1><default><default>
+sdc_d2 = port:PB18<3><1><default><default>
+sdc_d3 = port:PB19<3><1><default><default>
+card_ctrl = 2
+card_high_speed = 1
+card_line = 4
+
+[3g_para]
+bb_pwr_on = port:PF24<1><default><default><0>
+bb_wake = port:PG02<1><default><default><0>
+bb_rst = port:PG03<1><default><default><0>
+bb_host_wake = port:PG00<6><1><default><0>
+bb_name = "em55"
+bb_dldo = "axp22_dldo4"
+3g_used = 0
+3g_usbc_num = 0
+3g_usbc_type = 0
+3g_uart_num = 1
+

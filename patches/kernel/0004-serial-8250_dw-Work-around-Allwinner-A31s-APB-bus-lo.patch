@@ -1,0 +1,105 @@
+From f178e9ba23fb30c56d0180c8d2fbce1d70412c07 Mon Sep 17 00:00:00 2001
+From: Mechres <164776284+Mechres@users.noreply.github.com>
+Date: Sun, 25 Oct 2026 15:54:15 +0300
+Subject: [PATCH 4/5] serial: 8250_dw: Work around Allwinner A31s APB bus
+ lockup and cap frame_time
+
+On Allwinner A31s SoC:
+1. Reading DW_UART_USR during idle_enter BUSY polling hangs the APB
+   bus permanently.
+2. Reading RBR (UART_RX) during idle_enter also hangs the APB bus.
+3. If frame_time is computed to an unusually high value, ndelay()
+   spins indefinitely. Bound frame_time with a ceiling.
+4. Keep UART baud clock active across runtime PM while earlycon / boot
+   console is active to prevent bus lockup on subsequent console writes.
+---
+ drivers/tty/serial/8250/8250_dw.c | 37 ++++++++++++++++++-------------
+ 1 file changed, 22 insertions(+), 15 deletions(-)
+
+diff --git a/drivers/tty/serial/8250/8250_dw.c b/drivers/tty/serial/8250/8250_dw.c
+index 5fba913f3..2c459cc46 100644
+--- a/drivers/tty/serial/8250/8250_dw.c
++++ b/drivers/tty/serial/8250/8250_dw.c
+@@ -129,7 +129,6 @@ static void dw8250_idle_exit(struct uart_port *p)
+ static int dw8250_idle_enter(struct uart_port *p)
+ {
+ 	struct dw8250_data *d = to_dw8250_data(p->private_data);
+-	unsigned int usr_reg = d->pdata ? d->pdata->usr_reg : DW_UART_USR;
+ 	struct uart_8250_port *up = up_to_u8250p(p);
+ 	int retries;
+ 	u32 lsr;
+@@ -141,7 +140,6 @@ static int dw8250_idle_enter(struct uart_port *p)
+ 
+ 	d->in_idle = 1;
+ 
+-	/* Prevent triggering interrupt from RBR filling */
+ 	serial_port_out(p, UART_IER, 0);
+ 
+ 	if (up->dma) {
+@@ -154,34 +152,37 @@ static int dw8250_idle_enter(struct uart_port *p)
+ 	 * Wait until Tx becomes empty + one extra frame time to ensure all bits
+ 	 * have been sent on the wire.
+ 	 *
+-	 * FIXME: frame_time delay is too long with very low baudrates.
++	 * Finding 16: Cap frame_time to avoid indefinite busy-wait if
++	 * frame_time calculation returns an unusually large value.
+ 	 */
+ 	serial8250_fifo_wait_for_lsr_thre(up, p->fifosize);
+-	ndelay(p->frame_time);
++	ndelay(min_t(u32, p->frame_time, 200000u));
+ 
+ 	serial_port_out(p, UART_MCR, up->mcr | UART_MCR_LOOP);
+ 
+ 	retries = 4;	/* Arbitrary limit, 2 was always enough in tests */
+ 	do {
+ 		serial8250_clear_fifos(up);
+-		if (!(serial_port_in(p, usr_reg) & DW_UART_USR_BUSY))
+-			break;
+-		/* FIXME: frame_time delay is too long with very low baudrates. */
+-		ndelay(p->frame_time);
++		/*
++		 * Finding 16: Reading DW_UART_USR (0x1f / 0x7c) on Allwinner
++		 * A31s locks up the APB bus. The TX-empty wait + bounded
++		 * frame-time delay above is sufficient; if BUSY is still
++		 * set, the subsequent LCR write safely drops without
++		 * looping due to check_lcr in_idle protection.
++		 */
++		break;
+ 	} while (--retries);
+ 
+ 	lsr = serial_lsr_in(up);
+ 	if (lsr & UART_LSR_DR) {
+-		serial_port_in(p, UART_RX);
++		/*
++		 * Finding 16: Reading RBR (UART_RX) on A31s also hangs the APB
++		 * bus. Skip RBR drain read entirely; input line pull-up (PH21)
++		 * handles floating RX lines.
++		 */
+ 		up->lsr_saved_flags = 0;
+ 	}
+ 
+-	/* Now guaranteed to have BUSY deasserted? Just sanity check */
+-	if (serial_port_in(p, usr_reg) & DW_UART_USR_BUSY) {
+-		dw8250_idle_exit(p);
+-		return -EBUSY;
+-	}
+-
+ 	return 0;
+ }
+ 
+@@ -773,6 +774,12 @@ static int dw8250_probe(struct platform_device *pdev)
+ 	platform_set_drvdata(pdev, data);
+ 
+ 	pm_runtime_enable(dev);
++	/*
++	 * Finding 17: Keep baud clock enabled while earlycon / boot console
++	 * is using this port. If runtime suspend gates the clock, subsequent
++	 * printk output against the clock-gated UART freezes the Allwinner APB bus.
++	 */
++	pm_runtime_forbid(dev);
+ 
+ 	return 0;
+ }
+-- 
+2.56.0
+

@@ -1,0 +1,144 @@
+From 39f6f68507abd7605ad34c0fcb85b41f32404911 Mon Sep 17 00:00:00 2001
+From: Mechres <164776284+Mechres@users.noreply.github.com>
+Date: Sun, 25 Oct 2026 15:52:05 +0300
+Subject: [PATCH] sunxi: Add support for Exper Easypad T8E tablet (A31s)
+
+---
+ arch/arm/dts/Makefile                 |  1 +
+ arch/arm/dts/sun6i-a31s-exper-t8e.dts | 85 +++++++++++++++++++++++++++
+ configs/exper_t8e_defconfig           | 19 ++++++
+ 3 files changed, 105 insertions(+)
+ create mode 100644 arch/arm/dts/sun6i-a31s-exper-t8e.dts
+ create mode 100644 configs/exper_t8e_defconfig
+
+diff --git a/arch/arm/dts/Makefile b/arch/arm/dts/Makefile
+index a02dad22..c5c460d9 100644
+--- a/arch/arm/dts/Makefile
++++ b/arch/arm/dts/Makefile
+@@ -520,6 +520,7 @@ dtb-$(CONFIG_MACH_SUN6I) += \
+ 	sun6i-a31-mele-a1000g-quad.dtb \
+ 	sun6i-a31-mixtile-loftq.dtb \
+ 	sun6i-a31s-colorfly-e708-q1.dtb \
++	sun6i-a31s-exper-t8e.dtb \
+ 	sun6i-a31s-cs908.dtb \
+ 	sun6i-a31s-inet-q972.dtb \
+ 	sun6i-a31s-primo81.dtb \
+diff --git a/arch/arm/dts/sun6i-a31s-exper-t8e.dts b/arch/arm/dts/sun6i-a31s-exper-t8e.dts
+new file mode 100644
+index 00000000..01ee2c7e
+--- /dev/null
++++ b/arch/arm/dts/sun6i-a31s-exper-t8e.dts
+@@ -0,0 +1,85 @@
++// SPDX-License-Identifier: GPL-2.0+ OR X11
++/*
++ * Copyright 2026 mechres
++ * Device Tree for Exper Easypad 8 (Model T8E)
++ * Allwinner A31s quad-core tablet
++ */
++
++/dts-v1/;
++#include "sun6i-a31s.dtsi"
++#include "sun6i-reference-design-tablet.dtsi"
++
++/ {
++	model = "Exper Easypad T8E";
++	compatible = "exper,easypad-t8e", "allwinner,sun6i-a31s";
++
++	wifi_pwrseq: pwrseq {
++		compatible = "mmc-pwrseq-simple";
++		reset-gpios = <&pio 6 26 GPIO_ACTIVE_LOW>; /* PG26 */
++	};
++};
++
++&i2c1 {
++	status = "okay";
++
++	touchscreen@5d {
++		compatible = "goodix,gt911";
++		reg = <0x5d>;
++		interrupt-parent = <&pio>;
++		interrupts = <0 3 IRQ_TYPE_LEVEL_HIGH>; /* PA3 */
++		reset-gpios = <&pio 0 2 GPIO_ACTIVE_HIGH>; /* PA2 */
++		touchscreen-swapped-x-y;
++	};
++};
++
++&i2c2 {
++	status = "okay";
++
++	accelerometer@18 {
++		compatible = "st,lis3dh-accel";
++		reg = <0x18>;
++	};
++};
++
++&lradc {
++	vref-supply = <&reg_aldo3>;
++	status = "okay";
++
++	button-1000 {
++		label = "Home";
++		linux,code = <KEY_HOMEPAGE>;
++		channel = <0>;
++		voltage = <1000000>;
++	};
++};
++
++&mmc0 {
++	/delete-property/ vmmc-supply;
++	/delete-property/ cd-gpios;
++	broken-cd;
++	status = "okay";
++};
++
++&mmc1 {
++	vmmc-supply = <&reg_dldo1>;
++	mmc-pwrseq = <&wifi_pwrseq>;
++	bus-width = <4>;
++	non-removable;
++	status = "okay";
++};
++
++&reg_dldo2 {
++	regulator-min-microvolt = <1800000>;
++	regulator-max-microvolt = <1800000>;
++	regulator-name = "vcc-pg";
++	regulator-always-on;
++};
++
++&reg_dc1sw {
++	regulator-always-on;
++};
++
++&simplefb_lcd {
++	/delete-property/ vcc-lcd-supply;
++	/delete-property/ vcc-pg-supply;
++};
+diff --git a/configs/exper_t8e_defconfig b/configs/exper_t8e_defconfig
+new file mode 100644
+index 00000000..dca3bb2d
+--- /dev/null
++++ b/configs/exper_t8e_defconfig
+@@ -0,0 +1,19 @@
++CONFIG_ARM=y
++CONFIG_ARCH_SUNXI=y
++CONFIG_DEFAULT_DEVICE_TREE="sun6i-a31s-exper-t8e"
++CONFIG_DRAM_CLK=432
++CONFIG_SPL=y
++CONFIG_MACH_SUN6I=y
++CONFIG_DRAM_ZQ=251
++CONFIG_AXP_GPIO=y
++CONFIG_VIDEO_LCD_MODE="x:1024,y:768,depth:24,pclk_khz:60000,le:298,ri:6,up:30,lo:4,hs:22,vs:8,sync:3,vmode:0"
++CONFIG_VIDEO_LCD_DCLK_PHASE=0
++CONFIG_VIDEO_LCD_BL_EN="PA25"
++CONFIG_VIDEO_LCD_BL_PWM="PH13"
++CONFIG_VIDEO_LCD_PANEL_LVDS=y
++# CONFIG_SYS_MALLOC_CLEAR_ON_INIT is not set
++CONFIG_REGULATOR_AXP_DRIVEVBUS=y
++CONFIG_REGULATOR_AXP_USB_POWER=y
++CONFIG_AXP_DLDO1_VOLT=3300
++CONFIG_AXP_DLDO2_VOLT=1800
++CONFIG_USB_MUSB_HOST=y
+-- 
+2.56.0
+

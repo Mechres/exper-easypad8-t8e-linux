@@ -1,0 +1,85 @@
+// SPDX-License-Identifier: GPL-2.0+ OR X11
+/*
+ * Copyright 2026 mechres
+ * Device Tree for Exper Easypad 8 (Model T8E)
+ * Allwinner A31s quad-core tablet
+ */
+
+/dts-v1/;
+#include "sun6i-a31s.dtsi"
+#include "sun6i-reference-design-tablet.dtsi"
+
+/ {
+	model = "Exper Easypad T8E";
+	compatible = "exper,easypad-t8e", "allwinner,sun6i-a31s";
+
+	wifi_pwrseq: pwrseq {
+		compatible = "mmc-pwrseq-simple";
+		reset-gpios = <&pio 6 26 GPIO_ACTIVE_LOW>; /* PG26 */
+	};
+};
+
+&i2c1 {
+	status = "okay";
+
+	touchscreen@5d {
+		compatible = "goodix,gt911";
+		reg = <0x5d>;
+		interrupt-parent = <&pio>;
+		interrupts = <0 3 IRQ_TYPE_LEVEL_HIGH>; /* PA3 */
+		reset-gpios = <&pio 0 2 GPIO_ACTIVE_HIGH>; /* PA2 */
+		touchscreen-swapped-x-y;
+	};
+};
+
+&i2c2 {
+	status = "okay";
+
+	accelerometer@18 {
+		compatible = "st,lis3dh-accel";
+		reg = <0x18>;
+	};
+};
+
+&lradc {
+	vref-supply = <&reg_aldo3>;
+	status = "okay";
+
+	button-1000 {
+		label = "Home";
+		linux,code = <KEY_HOMEPAGE>;
+		channel = <0>;
+		voltage = <1000000>;
+	};
+};
+
+&mmc0 {
+	/delete-property/ vmmc-supply;
+	/delete-property/ cd-gpios;
+	broken-cd;
+	status = "okay";
+};
+
+&mmc1 {
+	vmmc-supply = <&reg_dldo1>;
+	mmc-pwrseq = <&wifi_pwrseq>;
+	bus-width = <4>;
+	non-removable;
+	status = "okay";
+};
+
+&reg_dldo2 {
+	regulator-min-microvolt = <1800000>;
+	regulator-max-microvolt = <1800000>;
+	regulator-name = "vcc-pg";
+	regulator-always-on;
+};
+
+&reg_dc1sw {
+	regulator-always-on;
+};
+
+&simplefb_lcd {
+	/delete-property/ vcc-lcd-supply;
+	/delete-property/ vcc-pg-supply;
+};

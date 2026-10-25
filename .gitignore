@@ -1,0 +1,29 @@
+# Build outputs & artifacts
+*.o
+*.cmd
+*.dtb
+zImage
+u-boot*
+*.bin
+*.tar.gz
+*.img
+
+# Build directories
+/kernel/
+/uboot/mkimage
+/uboot/u-boot-sunxi-with-spl.bin
+/rootfs/
+/backup/
+
+# Serial & debug logs
+/logs/
+*.log
+*.log.raw
+*.out
+
+# Temporary files
+*~
+*.swp
+*.bak
+__pycache__/
+*.pyc

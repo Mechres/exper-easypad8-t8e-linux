@@ -1,0 +1,42 @@
+From 762b2f3f30e00965bfcb47b677a6c0bea94daeb7 Mon Sep 17 00:00:00 2001
+From: Mechres <164776284+Mechres@users.noreply.github.com>
+Date: Sun, 25 Oct 2026 15:53:12 +0300
+Subject: [PATCH 3/5] mmc: sunxi-mmc: Fallback ocr_avail when no vmmc regulator
+ is supplied
+
+When a board has an always-on SD power rail without an explicit
+vmmc-supply regulator, host->ocr_avail remains 0, causing
+mmc_select_voltage() to reject valid card OCR responses with -EINVAL.
+Provide a default 3.2V-3.4V fallback.
+---
+ drivers/mmc/host/sunxi-mmc.c | 14 ++++++++++++++
+ 1 file changed, 14 insertions(+)
+
+diff --git a/drivers/mmc/host/sunxi-mmc.c b/drivers/mmc/host/sunxi-mmc.c
+index fe4c0f6d7..4628e9360 100644
+--- a/drivers/mmc/host/sunxi-mmc.c
++++ b/drivers/mmc/host/sunxi-mmc.c
+@@ -1309,6 +1309,20 @@ static int sunxi_mmc_resource_request(struct sunxi_mmc_host *host,
+ 	if (ret)
+ 		return ret;
+ 
++	/*
++	 * Finding 24: On boards where the SD rail is hardwired always-on and
++	 * without a declared vmmc-supply regulator, host->ocr_avail remains 0
++	 * (as it is normally only populated from regulator capabilities in
++	 * core/regulator.c). When mmc_select_voltage() performs:
++	 *   ocr &= host->ocr_avail -> 0
++	 * mmc core aborts card init with -EINVAL ("error -22 whilst initialising
++	 * SD card") despite the card successfully acknowledging ACMD41.
++	 * Default to standard 3.2V-3.4V (similar to sunplus-mmc, dw_mmc, mmci).
++	 * sunxi_mmc_volt_switch() already makes the same 3/3.3V assumption.
++	 */
++	if (!host->mmc->ocr_avail)
++		host->mmc->ocr_avail = MMC_VDD_32_33 | MMC_VDD_33_34;
++
+ 	host->reg_base = devm_platform_ioremap_resource(pdev, 0);
+ 	if (IS_ERR(host->reg_base))
+ 		return PTR_ERR(host->reg_base);
+-- 
+2.56.0
+
