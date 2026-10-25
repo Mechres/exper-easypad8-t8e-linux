@@ -213,3 +213,17 @@ A total of 40 technical findings were diagnosed, documented, and resolved.
   4. The factory Android operating system (`init.sun6i.rc`, `build.prop`) had no Bluetooth services, drivers, or daemon configured.
   5. Retail specifications for the Exper Easypad 8 (T8E) confirm Bluetooth was not included in this model.
 * **Alternative:** Standard USB Bluetooth dongles work plug-and-play via USB OTG using the active kernel USB host stack (`ehci-platform` / `musb-sunxi`) and `btusb`.
+
+### Finding 42: Goodix GT911 Capacitive Touchscreen Bring-Up & Coordinate Verification
+* **Mechanism:** The tablet uses a Goodix GT911 (`ID 911, version 1060`) 5-point capacitive multi-touch controller attached to `&i2c1` at address `0x5d`.
+* **Hardware Pins:**
+  * Interrupt: `PA3` (`<&pio 0 3 IRQ_TYPE_LEVEL_HIGH>`)
+  * Reset: `PA2` (`<&pio 0 2 GPIO_ACTIVE_HIGH>`)
+* **Axis & Coordinate Verification:**
+  * Native Resolution: $1024 \times 768$ mapped to screen framebuffer.
+  * Property: `touchscreen-swapped-x-y;` (matching FEX `ctp_exchange_x_y_flag = 1`).
+  * Live touch sampling via `evtest /dev/input/event0` verified:
+    * Top-Left: $X \approx 36, Y \approx 21$ (approaching origin $(0, 0)$).
+    * Bottom-Right: $X \approx 933, Y \approx 721$ (approaching maximum $(1024, 768)$).
+    * Center: $X \approx 457, Y \approx 442$.
+  * Confirmed: Zero inversion required (`revert_x = 0, revert_y = 0`). The touch matrix is 1:1 aligned with the display panel.
