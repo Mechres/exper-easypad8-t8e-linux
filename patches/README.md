@@ -27,3 +27,5 @@ Applied against mainline Linux (6.12+ / 7.x):
    Bypasses `DW_UART_USR` BUSY polling and RBR flush during idle entry that freeze the A31s APB bus; bounds `frame_time`; forbids runtime PM clock gating during active console.
 5. `0005-ARM-dts-sun6i-Add-Device-Tree-for-Exper-Easypad-T8E-.patch`:
    Adds board Device Tree `arch/arm/boot/dts/allwinner/sun6i-a31s-exper-t8e.dts` and Makefile target.
+6. `0006-clk-Avoid-NULL-pointer-dereference-in-clk_pm_runtime.patch`:
+   Guards against NULL `core->dev` in `clk_pm_runtime_get()` and `clk_pm_runtime_put()` to avoid crash on clock providers lacking associated struct device (e.g. Allwinner CCU).

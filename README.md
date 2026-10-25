@@ -16,13 +16,13 @@ Internal NAND/eMMC flash remains completely untouched; the entire system boots c
 | :--- | :--- | :--- |
 | **SoC** | Allwinner A31s (`sun6i`) | Quad-core ARM Cortex-A7 @ 1.2 GHz |
 | **RAM** | 1 GiB DDR3 | Clocked at 432 MHz (ZQ 251) |
-| **PMIC** | X-Powers AXP221s | Connected via **TWI1 (I2C1) @ 0x34** (P2WI unused) |
+| **PMIC** | X-Powers AXP221s | Connected via **P2WI @ 0x68** (switched to P2WI mode by U-Boot) |
 | **Display** | 1024×768 LVDS | Single-channel LVDS panel; PA25 backlight enable |
 | **Touchscreen** | Goodix GT911 | Capacitive Multi-touch on **TWI1 @ 0x5d** (INT=PA3, RST=PA2) |
 | **Storage** | MicroSD (`mmc0`) | Routed to **PF0–PF5**; always-on 3.3V rail |
 | **USB** | OTG / MUSB | Micro-USB connector; supports Device / Gadget mode |
 | **Accelerometer**| ST LIS3DH | 3-axis motion sensor on **TWI2 @ 0x19** |
-| **Wireless** | Broadcom BCM40183 | SDIO WiFi (`mmc1`) + Bluetooth UART (`uart1`) |
+| **Wireless** | Broadcom AP6210 (BCM43362) | SDIO WiFi (`mmc1`) + Bluetooth UART (`uart1`) |
 | **Debug Port** | UART0 (115200 8N1) | Test pads on mainboard; routed to **PH20 (TX) / PH21 (RX)** |
 
 ---
@@ -33,14 +33,16 @@ Internal NAND/eMMC flash remains completely untouched; the entire system boots c
 | :--- | :--- | :--- | :--- |
 | **BROM & SPL** | Allwinner boot0 / U-Boot SPL | **Working** | Boots reliably from MicroSD |
 | **U-Boot** | Mainline U-Boot 2024+ | **Working** | PSCI, Non-Secure mode, SimpleFB video |
+| **PMIC (AXP221s)** | `axp20x-i2c` / `axp20x-regulator` | **Working** | Connected via P2WI @ 0x68; DLDO1/2/4 powered |
 | **Serial Console** | Synopsys DW APB UART (`ttyS0`) | **Working** | Earlycon + interactive getty shell |
 | **MicroSD Storage** | `sunxi-mmc` (`mmc0`) | **Working** | Rootfs mounted on `mmcblk0p2` |
 | **USB Gadget** | `musb-sunxi` + `g_ether` (`usb0`)| **Working** | CDC Ethernet / RNDIS (172.16.42.1/24) |
 | **SSH Server** | OpenSSH on Alpine Linux | **Working** | Direct root login via USB cable |
+| **WiFi** | Broadcom `brcmfmac` (`wlan0`) | **Working** | SDIO AP6210 (BCM43362) on mmc1; live scanning verified |
 | **Touchscreen** | `goodix` driver (`input0`) | **Working** | Event reports validated via evtest |
 | **Sensors** | `st_lis3dh` I2C driver | **Detected** | Probed on I2C2 @ 0x19 |
-| **Display (DRM)**| `sun4i-drm` / panel-simple | *In Progress* | SimpleFB functional in U-Boot; DRM disabled |
-| **WiFi / BT** | `brcmfmac` / `hci_uart` | *Planned* | MMC1 pwrseq regulator dependency |
+| **Display (DRM)**| `sun4i-drm` / panel-simple | *In Progress* | SimpleFB functional in U-Boot; DRM work starting |
+| **Bluetooth** | `hci_uart` | *Planned* | Broadcom UART on uart1 |
 | **Audio** | Allwinner sun6i codec | *Planned* | Headphone jack & internal speaker |
 
 ---
@@ -56,13 +58,16 @@ Internal NAND/eMMC flash remains completely untouched; the entire system boots c
         ↓
 [Linux Kernel 7.2 Mainline]
   ├── earlycon / 8250_dw serial console (PH20/PH21)
+  ├── p2wi @ 0x68 (AXP221s regulators DLDO1/2/4)
   ├── sunxi-mmc root mount (root=/dev/mmcblk0p2)
+  ├── mmc1 SDIO WiFi (AP6210 / BCM43362 -> wlan0)
   ├── goodix touchscreen probe (I2C1 0x5d)
   └── musb-sunxi USB gadget (usb0 CDC Ethernet)
         ↓
 [Alpine Linux 3.20 (ARMv7 OpenRC)]
   ├── /sbin/getty 115200 ttyS0
-  └── sshd listening on 172.16.42.1:22
+  ├── sshd listening on 172.16.42.1:22
+  └── wlan0 ready for wireless networking
 ```
 
 ---
@@ -81,32 +86,40 @@ Trying to boot from MMC1
 Starting kernel ...
 
 [    0.000000] Booting Linux on physical CPU 0x0
-[    0.000000] Linux version 7.2.0-rc1-gcb8a75eec (mechres@workstation)
+[    0.000000] Linux version 7.2.0-gf36b54d9862f-dirty (mechres@workstation)
 [    0.000000] Machine model: Exper Easypad T8E
 ...
 [    9.560124] 1c28000.serial: ttyS0 at MMIO 0x1c28000 (irq = 33, base_baud = 1500000) is a 16550A
 [    9.862140] sunxi-mmc 1c0f000.mmc: initialized, max sections: 128
+[   10.281600] axp20x-i2c 2-0068: AXP20x variant AXP221 found
+[   10.387395] probe of axp20x-regulator.0 with driver axp20x-regulator returned 0
 [   10.420188] mmc0: new high speed SDHC card at address aaaa
 [   10.428510] mmcblk0: mmc0:aaaa SC32G 29.7 GiB
 [   10.435210]  mmcblk0: p1 p2
+[   10.942642] mmc1: new high speed SDIO card at address 0001
 [   11.120550] Goodix-TS 1-005d: ID 911, Version: 1060
 [   11.135240] input: Goodix Capacitive TouchScreen as /dev/input/input0
 [   12.450120] using random self ethernet address
-[   12.450145] using random host ethernet address
 [   12.455200] usb0: HOST MAC 9a:8b:7c:6d:5e:4f
 [   12.460110] usb0: MAC a6:b7:c8:d9:ea:fb
 [   12.465220] g_ether gadget: Ethernet Gadget, version: Memorial Day 2008
 [   12.470110] g_ether gadget: g_ether ready
 ...
+[  114.881121] brcmfmac: brcmf_fw_alloc_request: using brcm/brcmfmac43362-sdio for chip BCM43362/1
+[  115.205934] brcmfmac: brcmf_c_preinit_dcmds: Firmware: BCM43362/1 wl0: Jul  5 2013 17:55:22 version 5.90.195.89.10 FWID 01-f4d31c13
+...
 Welcome to Alpine Linux 3.20
-Kernel 7.2.0-rc1-gcb8a75eec on an armv7l (ttyS0)
+Kernel 7.2.0-gf36b54d9862f-dirty on an armv7l (ttyS0)
 
 exper-t8e login: root
 Password: 
 Welcome to Alpine!
 exper-t8e:~# ip addr show dev usb0
-3: usb0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast state UP
+2: usb0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast state UP
     inet 172.16.42.1/24 brd 172.16.42.255 scope global usb0
+exper-t8e:~# iw dev wlan0 scan | grep SSID
+	SSID: SUPERONLINE_WiFi_C8AF
+	SSID: SUPERONLINE_Wi-Fi_2319
 ```
 
 ---
