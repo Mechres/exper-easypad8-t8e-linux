@@ -28,3 +28,5 @@ u-boot*
 *.bak
 __pycache__/
 *.pyc
+/scripts/exper-backlight
+/scripts/exper-powerd
