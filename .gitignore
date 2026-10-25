@@ -1,6 +1,7 @@
 # Build outputs & artifacts
 *.o
 *.cmd
+!/uboot/boot.cmd
 *.dtb
 zImage
 u-boot*

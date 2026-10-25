@@ -45,6 +45,8 @@
 	/delete-property/ operating-points;
 };
 
+
+
 /* AXP221 PMIC is connected via P2WI at 0x68 with NMI interrupt. */
 &battery_power_supply {
 	status = "okay";
