@@ -227,3 +227,19 @@ A total of 40 technical findings were diagnosed, documented, and resolved.
     * Bottom-Right: $X \approx 933, Y \approx 721$ (approaching maximum $(1024, 768)$).
     * Center: $X \approx 457, Y \approx 442$.
   * Confirmed: Zero inversion required (`revert_x = 0, revert_y = 0`). The touch matrix is 1:1 aligned with the display panel.
+
+### Finding 43: STMicroelectronics LIS3DH 3-Axis Accelerometer Bring-Up (`st_accel` / IIO Subsystem)
+* **Mechanism:** The tablet is equipped with an STMicroelectronics LIS3DH MEMS digital motion sensor attached to `&i2c2` at I2C address `0x19`.
+* **Hardware Wiring:**
+  * I2C Bus: `&i2c2` (`1c2b400.i2c`)
+  * Address: `0x19`
+  * Interrupt 1: `PA9` (`<&pio 0 9 IRQ_TYPE_EDGE_RISING>`), corresponding to FEX linear pin configuration `gsensor_int1 = port:PA09<6><1>`.
+* **Kernel Subsystem Configuration:**
+  * Legacy hardware monitoring driver `CONFIG_SENSORS_LIS3_I2C` was disabled to resolve symbol and binding conflicts with the modern Industrial I/O (IIO) framework.
+  * Enabled built-in IIO drivers: `CONFIG_IIO_ST_ACCEL_3AXIS=y`, `CONFIG_IIO_ST_ACCEL_I2C_3AXIS=y`, `CONFIG_IIO_TRIGGER=y`, and `CONFIG_IIO_TRIGGERED_BUFFER=y`.
+* **Verification:**
+  * Driver initialized cleanly as `/sys/bus/iio/devices/iio:device0` (`name: lis3dh`).
+  * IRQ thread `irq/50-lis3dh-t` successfully registered on IRQ 50 (`PA9`).
+  * Live sampling confirmed valid gravitational vector:
+    * $X \approx 860$, $Y \approx -48$, $Z \approx -568$ at scale $0.009806\text{ m/s}^2$
+    * Euclidean magnitude: $\sqrt{X^2 + Y^2 + Z^2} \times \text{scale} \approx 10.1\text{ m/s}^2 \approx 1.0\text{ g}$.

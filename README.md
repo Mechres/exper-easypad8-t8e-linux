@@ -40,7 +40,7 @@ Internal NAND/eMMC flash remains completely untouched; the entire system boots c
 | **SSH Server** | OpenSSH on Alpine Linux | **Working** | Direct root login via USB cable |
 | **WiFi** | Broadcom `brcmfmac` (`wlan0`) | **Working** | SDIO Ampak AP6181 (BCM43362) on mmc1; live scanning verified |
 | **Touchscreen** | `goodix` driver (`input0`) | **Working** | 1024×768 1:1 aligned coordinate space, 5-point multi-touch validated |
-| **Sensors** | `st_lis3dh` I2C driver | **Detected** | Probed on I2C2 @ 0x19 |
+| **Sensors** | ST `lis3dh` IIO driver (`iio:device0`) | **Working** | 3-axis motion & tilt vector sensing with PA9 IRQ |
 | **Display (LCD)**| SimpleFB (`/dev/fb0`) + `fbcon` | **Working** | 1024×768@60Hz single-channel LVDS; console login active |
 | **Audio** | Allwinner `sun4i-codec` (`sun6i-a31-codec`) | **Working** | Stereo DAC, Line Out (Speaker amp PL4), Headphone & Mic |
 | **Bluetooth** | `btusb` (External) | **N/A (Not Fitted)** | Internal AP6181 is Wi-Fi only; external USB Bluetooth supported via OTG |

@@ -77,6 +77,8 @@
 	accelerometer@19 {
 		compatible = "st,lis3dh-accel";
 		reg = <0x19>;
+		interrupt-parent = <&pio>;
+		interrupts = <0 9 IRQ_TYPE_EDGE_RISING>; /* PA9 */
 	};
 };
 
