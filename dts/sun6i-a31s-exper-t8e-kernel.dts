@@ -138,6 +138,8 @@
 	/delete-property/ usb1_vbus-supply;
 };
 
+/delete-node/ &simplefb_hdmi;
+
 &simplefb_lcd {
 	/delete-property/ vcc-lcd-supply;
 	/delete-property/ vcc-pg-supply;

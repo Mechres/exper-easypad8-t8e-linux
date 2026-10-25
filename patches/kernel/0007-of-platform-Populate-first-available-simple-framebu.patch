@@ -1,0 +1,66 @@
+From: MechRes <mechres@localhost>
+Date: Sun, 25 Oct 2026 22:30:00 +0300
+Subject: [PATCH 7/7] of: platform: Populate first available simple-framebuffer node in chosen
+
+of_get_compatible_child() stops at the first child matching
+"simple-framebuffer" regardless of its "status" property.
+On SoCs with multiple framebuffer template nodes (e.g. Allwinner A31
+having both framebuffer-lcd0-hdmi [disabled] and framebuffer-lcd0 [okay]
+in /chosen), of_get_compatible_child() returns the disabled HDMI node,
+causing of_platform_device_create() to fail and ignoring the active
+framebuffer device.
+
+Iterate through the children of /chosen using for_each_child_of_node()
+and populate the first simple-framebuffer node that is actually
+available (of_device_is_available(node)).
+
+Signed-off-by: MechRes <mechres@localhost>
+---
+ drivers/of/platform.c | 26 ++++++++++++++------------
+ 1 file changed, 14 insertions(+), 12 deletions(-)
+
+diff --git a/drivers/of/platform.c b/drivers/of/platform.c
+index 8b1e76407..c4e693f95 100644
+--- a/drivers/of/platform.c
++++ b/drivers/of/platform.c
+@@ -578,21 +578,23 @@ static int __init of_platform_default_populate_init(void)
+ 			of_node_put(node);
+ 		}
+ 
+-		node = of_get_compatible_child(of_chosen, "simple-framebuffer");
+-		if (node) {
+-			/*
+-			 * Since a "simple-framebuffer" device is already added
+-			 * here, disable the Generic System Framebuffers (sysfb)
+-			 * to prevent it from registering another device for the
+-			 * system framebuffer later (e.g: using the screen_info
+-			 * data that may had been filled as well).
+-			 *
+-			 * This can happen for example on DT systems that do EFI
+-			 * booting and may provide a GOP handle to the EFI stub.
+-			 */
+-			sysfb_disable(NULL);
+-			of_platform_device_create(node, NULL, NULL);
+-			of_node_put(node);
++		for_each_child_of_node(of_chosen, node) {
++			if (of_device_is_compatible(node, "simple-framebuffer") &&
++			    of_device_is_available(node)) {
++				/*
++				 * Since a "simple-framebuffer" device is already added
++				 * here, disable the Generic System Framebuffers (sysfb)
++				 * to prevent it from registering another device for the
++				 * system framebuffer later (e.g: using the screen_info
++				 * data that may had been filled as well).
++				 *
++				 * This can happen for example on DT systems that do EFI
++				 * booting and may provide a GOP handle to the EFI stub.
++				 */
++				sysfb_disable(NULL);
++				of_platform_device_create(node, NULL, NULL);
++				break;
++			}
+ 		}
+ 
+ 		/* Populate everything else. */
+-- 
+2.43.0
