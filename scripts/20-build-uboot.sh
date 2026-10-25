@@ -5,7 +5,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/00-env.sh"
 
-UBOOT_SRC="${UBOOT_SRC:-$ROOT_PRJ/piranha-a10/uboot/u-boot}"
+UBOOT_SRC="${UBOOT_SRC:-$ROOT_PRJ/telefon-canlandirma/piranha-a10/uboot/u-boot}"
 echo "U-Boot source directory: $UBOOT_SRC"
 
 # Copy Config and DTS

@@ -1,0 +1,41 @@
+From: MechRes <mechres@localhost>
+Date: Sun, 25 Oct 2026 22:00:00 +0300
+Subject: [PATCH 6/6] clk: Avoid NULL pointer dereference in clk_pm_runtime_get/put
+
+When cpufreq or clock providers invoke clk_pm_runtime_get() or
+clk_pm_runtime_put() on a clock whose provider did not assign core->dev
+(such as Allwinner sunxi CCU drivers), pm_runtime_resume_and_get(core->dev)
+dereferences core->dev->power at offset 0x119, crashing the system.
+
+Add a NULL check for core->dev to prevent runtime PM operations on clocks
+lacking an associated struct device.
+
+Signed-off-by: MechRes <mechres@localhost>
+---
+ drivers/clk/clk.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/clk/clk.c b/drivers/clk/clk.c
+index 048adfa86..77ed22e70 100644
+--- a/drivers/clk/clk.c
++++ b/drivers/clk/clk.c
+@@ -120,7 +120,7 @@ struct clk {
+ /***           runtime pm          ***/
+ static int clk_pm_runtime_get(struct clk_core *core)
+ {
+-	if (!core->rpm_enabled)
++	if (!core->rpm_enabled || !core->dev)
+ 		return 0;
+ 
+ 	return pm_runtime_resume_and_get(core->dev);
+@@ -128,7 +128,7 @@ static int clk_pm_runtime_get(struct clk_core *core)
+ 
+ static void clk_pm_runtime_put(struct clk_core *core)
+ {
+-	if (!core->rpm_enabled)
++	if (!core->rpm_enabled || !core->dev)
+ 		return;
+ 
+ 	pm_runtime_put_sync(core->dev);
+-- 
+2.43.0

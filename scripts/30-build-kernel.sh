@@ -5,7 +5,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/00-env.sh"
 
-KERNEL_SRC="${KERNEL_SRC:-$ROOT_PRJ/piranha-a10/kernel/linux}"
+KERNEL_SRC="${KERNEL_SRC:-$ROOT_PRJ/telefon-canlandirma/piranha-a10/kernel/linux}"
 echo "Kernel source directory: $KERNEL_SRC"
 mkdir -p "$PRJ/kernel"
 

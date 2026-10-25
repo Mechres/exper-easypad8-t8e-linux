@@ -105,7 +105,8 @@ def main():
                     time.sleep(0.01)
                     continue
                 if not data:
-                    raise OSError(EIO := 5)
+                    time.sleep(0.05)
+                    continue
                 raw.write(data)
                 if not locked:
                     window.extend(data)
