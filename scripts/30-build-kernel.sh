@@ -49,8 +49,9 @@ echo "==> Configuring hardware and Simple Framebuffer..."
 # Finding 16: console=ttyS0 REMOVED — conflict between earlycon and ttyS0 setup
 # (LCR/BUSY mismatch) was hanging the kernel. earlycon (keep_bootcon) carries all serial
 # output; getty (userspace) opens ttyS0 itself.
-./scripts/config --set-str CONFIG_CMDLINE "console=tty0 keep_bootcon earlycon=uart8250,mmio32,0x01c28000 root=/dev/mmcblk0p2 rootwait rw nosmp panic=0 fbcon=map:0 loglevel=8 ignore_loglevel consoleblank=0 debug initcall_debug"
-./scripts/config --enable CONFIG_CMDLINE_FORCE
+./scripts/config --set-str CONFIG_CMDLINE "console=tty0 keep_bootcon earlycon=uart8250,mmio32,0x01c28000 root=/dev/mmcblk0p2 rootwait rw panic=0 fbcon=map:0 loglevel=8 ignore_loglevel consoleblank=0 debug initcall_debug"
+./scripts/config --enable CONFIG_CMDLINE_EXTEND
+./scripts/config --disable CONFIG_CMDLINE_FORCE
 
 # Touchscreen (Goodix GT911)
 ./scripts/config --enable CONFIG_INPUT_TOUCHSCREEN

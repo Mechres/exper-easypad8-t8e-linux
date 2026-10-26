@@ -39,7 +39,7 @@
 	};
 };
 
-/* Prevent cpufreq-dt from binding and crashing with nosmp */
+/* Prevent cpufreq-dt from binding and crashing without OPP table (SMP runs at boot frequency) */
 &cpu0 {
 	/delete-property/ cpu-supply;
 	/delete-property/ operating-points;

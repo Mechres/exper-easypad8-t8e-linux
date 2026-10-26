@@ -267,3 +267,21 @@ A total of 40 technical findings were diagnosed, documented, and resolved.
   * Enhanced [`exper-backlight`](../scripts/exper-backlight.c) with brightness scaling ($0-100\%$) and clean low-power standby mode (`off` / `on`), shutting off PWM, `PA25` backlight enable, and `PG12` panel electronics.
   * Developed [`exper-powerd`](../scripts/exper-powerd.c) background daemon listening on `/dev/input/by-path/platform-1f03400.i2c-platform-axp221-pek-event`.
   * Single-press of the physical power button toggles the LCD panel and backlight off / on instantly, providing real tablet power-key behavior and maximizing battery endurance.
+
+### Finding 46: Allwinner A31s 4-Core SMP Multi-Core Activation
+* **Root Cause of Single-Core State:** During initial Linux 7.2 board bring-up, `nosmp` was set in `bootargs` and hardcoded into `CONFIG_CMDLINE` with `CONFIG_CMDLINE_FORCE=y` to prevent early `cpufreq-dt` binding panics on boards lacking an OPP table.
+* **Resolution:**
+  1. Updated `dts/sun6i-a31s-exper-t8e-kernel.dts` to delete `operating-points` and `cpu-supply` under `&cpu0`. This cleanly causes `cpufreq-dt` to report `cpu cpu0: OPP table can't be empty` and exit safely (return code 19) without blocking SMP initialization.
+  2. Removed `nosmp` from `CONFIG_CMDLINE`, enabled `CONFIG_CMDLINE_EXTEND`, and disabled `CONFIG_CMDLINE_FORCE`.
+  3. Recompiled `zImage` and updated `uboot/boot.cmd` and `uboot/boot.scr`.
+* **Verification:**
+  * Secondary CPUs brought up during kernel boot:
+    ```text
+    smp: Bringing up secondary CPUs ...
+    smp: Brought up 1 node, 4 CPUs
+    SMP: Total of 4 processors activated (192.00 BogoMIPS).
+    ```
+  * Verified live sysfs and cpuinfo:
+    * `/sys/devices/system/cpu/online`: `0-3`
+    * `nproc`: `4`
+    * All 4 cores (`processor 0, 1, 2, 3`) fully active and scheduling user tasks.
