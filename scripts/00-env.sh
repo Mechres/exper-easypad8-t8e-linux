@@ -7,7 +7,7 @@ ROOT_PRJ="$(cd "$PRJ_DERIVED/.." && pwd)"
 
 export PRJ="${PRJ:-$PRJ_DERIVED}"
 # Use ready-made bootlin armv7 toolchain from piranha-a10
-export TC="${TOOLCHAIN_DIR:-${TC:-$ROOT_PRJ/telefon-canlandirma/piranha-a10/toolchain/armv7-eabihf--glibc--stable-2024.05-1/bin}}"
+export TC="${TOOLCHAIN_DIR:-${TC:-$ROOT_PRJ/piranha-a10/toolchain/armv7-eabihf--glibc--stable-2024.05-1/bin}}"
 export PATH="$TC:$PATH"
 export ARCH="${ARCH:-arm}"
 export CROSS_COMPILE="${CROSS_COMPILE:-arm-buildroot-linux-gnueabihf-}"
