@@ -1,9 +1,12 @@
+
 # Exper Easypad 8 (Model T8E) — Mainline Linux & Alpine Bring-up
 
 [![SoC: Allwinner A31s](https://img.shields.io/badge/SoC-Allwinner%20A31s%20(sun6i)-blue.svg)](#hardware-specifications)
 [![Kernel: Linux 7.2](https://img.shields.io/badge/Kernel-Mainline%20Linux%207.2-green.svg)](#hardware-support-status)
 [![OS: Alpine Linux 3.20](https://img.shields.io/badge/OS-Alpine%20Linux%203.20%20ARMv7-purple.svg)](#quick-start)
-
+<p align="center">
+<img width="500" height="500" alt="img" src="https://github.com/user-attachments/assets/590b9d5f-0111-4ed2-9946-685f5c4f2527" />
+</p>
 Standalone bring-up project and reproducible build tree for running modern mainline Linux and Alpine Linux on the **Exper Easypad 8 (Model T8E)** quad-core tablet.
 
 Internal NAND/eMMC flash remains completely untouched; the entire system boots cleanly from an external MicroSD card. Removing the SD card restores the factory stock Android system.
