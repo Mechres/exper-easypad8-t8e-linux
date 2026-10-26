@@ -20,7 +20,7 @@ Internal NAND/eMMC flash remains completely untouched; the entire system boots c
 | **SoC** | Allwinner A31s (`sun6i`) | Quad-core ARM Cortex-A7 @ 1.2 GHz |
 | **RAM** | 1 GiB DDR3 | Clocked at 432 MHz (ZQ 251) |
 | **PMIC** | X-Powers AXP221s | Connected via **P2WI @ 0x68** (switched to P2WI mode by U-Boot) |
-| **Display** | 1024×768 LVDS | Single-channel LVDS panel; PA25 backlight enable |
+| **Display** | 1024×768 LVDS | Single-channel 24-bit LVDS panel (VESA mapping, 60 MHz pixel clock); PG12 panel supply, PH13 PWM0 + PA25 backlight |
 | **Touchscreen** | Goodix GT911 | Capacitive Multi-touch on **TWI1 @ 0x5d** (INT=PA3, RST=PA2) |
 | **Storage** | MicroSD (`mmc0`) | Routed to **PF0–PF5**; always-on 3.3V rail |
 | **USB** | OTG / MUSB | Micro-USB connector; supports Device / Gadget mode |
@@ -44,7 +44,9 @@ Internal NAND/eMMC flash remains completely untouched; the entire system boots c
 | **WiFi** | Broadcom `brcmfmac` (`wlan0`) | **Working** | SDIO Ampak AP6181 (BCM43362) on mmc1; live scanning verified |
 | **Touchscreen** | `goodix` driver (`input0`) | **Working** | 1024×768 1:1 aligned coordinate space, 5-point multi-touch validated |
 | **Sensors** | ST `lis3dh` IIO driver (`iio:device0`) | **Working** | 3-axis motion & tilt vector sensing with PA9 IRQ |
-| **Display (LCD)**| SimpleFB (`/dev/fb0`) + `fbcon` | **Working** | 1024×768@60Hz single-channel LVDS; console login active |
+| **Display (LCD)**| `sun4i-drm` (DE1 backend + TCON0 LVDS) + fbdev emulation | **Working** | `card0` / `LVDS-1` 1024×768 @ 54.87 Hz, XRGB overlay planes, `fbcon` on `sun4i-drmdrmfb`; the SimpleFB DTB stays as fallback (Findings 47, 49) |
+| **Backlight** | `pwm-backlight` (PH13 PWM0, PA25 enable, PG12 supply) | **Working** | `/sys/class/backlight/backlight` (0–56), `bl_power` for on/off |
+| **DE1 hardware scaler** | `sun4i-frontend` (A31 DEFE) | **Not working** | Frontend never produces output on the A31s, see Finding 48; scale in software instead |
 | **Audio** | Allwinner `sun4i-codec` (`sun6i-a31-codec`) | **Working** | Stereo DAC, Line Out (Speaker amp PL4), Headphone & Mic |
 | **Bluetooth** | `btusb` (External) | **N/A (Not Fitted)** | Internal AP6181 is Wi-Fi only; external USB Bluetooth supported via OTG |
 
@@ -57,15 +59,14 @@ Internal NAND/eMMC flash remains completely untouched; the entire system boots c
            ↓
 [U-Boot 2024.x] (MicroSD offset 40 KB, PSCI / Non-Secure HYP)
   ├── LCD init & splash screen (SimpleFB @ 1024x768x32)
-  └── Loads boot.scr, sun6i-a31s-exper-t8e.dtb, zImage
+  └── Loads boot.scr → sun6i-a31s-exper-t8e-drm.dtb, zImage (bootargs: cma=64M loglevel=4 ...)
         ↓
-[Linux Kernel 7.2 Mainline]
-  ├── earlycon / 8250_dw serial console (PH20/PH21)
-  ├── p2wi @ 0x68 (AXP221s regulators DLDO1/2/4)
-  ├── sunxi-mmc root mount (root=/dev/mmcblk0p2)
-  ├── mmc1 SDIO WiFi (AP6210 / BCM43362 -> wlan0)
-  ├── goodix touchscreen probe (I2C1 0x5d)
-  └── musb-sunxi USB gadget (usb0 CDC Ethernet)
+[Linux Kernel 7.2 Mainline] (init at ~1.8 s)
+  ├── 4× Cortex-A7 (SMP), 8250_dw serial console (PH20/PH21)
+  ├── AXP221s PMIC on P2WI @ 0x68 (regulators, battery, power key)
+  ├── sunxi-mmc root mount (root=/dev/mmcblk0p2), mmc1 SDIO Wi-Fi (BCM43362 -> wlan0)
+  ├── goodix touchscreen (I2C1 0x5d), musb-sunxi USB gadget (usb0 CDC Ethernet)
+  └── modules-load: sun4i-backend, sun6i-drc, sun4i-drm → /dev/dri/card0, fbcon (DRM ready at ~4.5 s)
         ↓
 [Alpine Linux 3.20 (ARMv7 OpenRC)]
   ├── /sbin/getty 115200 ttyS0
@@ -73,56 +74,37 @@ Internal NAND/eMMC flash remains completely untouched; the entire system boots c
   └── wlan0 ready for wireless networking
 ```
 
----
-
 ## Verified Boot Output
 
+Excerpt of a real boot of the clean kernel (`dmesg`, DRM DTB), timestamps in seconds:
+
 ```text
-U-Boot SPL 2024.04 (Oct 24 2026 - 20:30:10 +0300)
-DRAM: 1024 MiB
-Trying to boot from MMC1
-## Executing script at 43100000
->>> Exper Easypad 8 LowMem Bootloader <<<
->>> Loading DTB...
->>> Loading zImage...
->>> Booting Linux...
-Starting kernel ...
+[    0.000000] Linux version 7.2.0-gdbd482bca8d3 (arm-buildroot-linux-gnueabihf-gcc ... 13.3.0 ...)
+[    0.000000] OF: fdt: Machine model: Exper Easypad T8E (DRM)
+[    0.059785] smp: Brought up 1 node, 4 CPUs
+[    0.059809] SMP: Total of 4 processors activated (192.00 BogoMIPS).
+[    0.278061] 1c28000.serial: ttyS0 at MMIO 0x1c28000 (irq = 235, base_baud = 1500000) is a 16550A
+[    0.312364] Goodix-TS 0-005d: ID 911, version: 1060
+[    0.337058] axp20x-i2c 2-0068: AXP20x variant AXP221 found
+[    0.417063] g_ether gadget.0: g_ether ready
+[    0.432351] sunxi-mmc 1c0f000.mmc: initialized, max. request size: 16384 KB
+[    0.515296]  mmcblk0: p1 p2
+[    0.678736] mmc1: new high speed SDIO card at address 0001
+[    1.758376] Run /sbin/init as init process
+[    4.522070] sun4i-drm display-engine: bound 1c0c000.lcd-controller (ops sun4i_tcon_platform_driver_exit [sun4i_tcon])
+[    4.524119] [drm] Initialized sun4i-drm 1.0.0 for display-engine on minor 0
+[    4.572536] sun4i-drm display-engine: [drm] fb0: sun4i-drmdrmfb frame buffer device
+[    4.918416] brcmfmac: brcmf_c_preinit_dcmds: Firmware: BCM43362/1 wl0: Jul  5 2013 17:55:22 version 5.90.195.89.10 FWID 01-f4d31c13
+```
 
-[    0.000000] Booting Linux on physical CPU 0x0
-[    0.000000] Linux version 7.2.0-gf36b54d9862f-dirty (mechres@workstation)
-[    0.000000] Machine model: Exper Easypad T8E
-...
-[    9.560124] 1c28000.serial: ttyS0 at MMIO 0x1c28000 (irq = 33, base_baud = 1500000) is a 16550A
-[    9.862140] sunxi-mmc 1c0f000.mmc: initialized, max sections: 128
-[   10.281600] axp20x-i2c 2-0068: AXP20x variant AXP221 found
-[   10.387395] probe of axp20x-regulator.0 with driver axp20x-regulator returned 0
-[   10.420188] mmc0: new high speed SDHC card at address aaaa
-[   10.428510] mmcblk0: mmc0:aaaa SC32G 29.7 GiB
-[   10.435210]  mmcblk0: p1 p2
-[   10.942642] mmc1: new high speed SDIO card at address 0001
-[   11.120550] Goodix-TS 1-005d: ID 911, Version: 1060
-[   11.135240] input: Goodix Capacitive TouchScreen as /dev/input/input0
-[   12.450120] using random self ethernet address
-[   12.455200] usb0: HOST MAC 9a:8b:7c:6d:5e:4f
-[   12.460110] usb0: MAC a6:b7:c8:d9:ea:fb
-[   12.465220] g_ether gadget: Ethernet Gadget, version: Memorial Day 2008
-[   12.470110] g_ether gadget: g_ether ready
-...
-[  114.881121] brcmfmac: brcmf_fw_alloc_request: using brcm/brcmfmac43362-sdio for chip BCM43362/1
-[  115.205934] brcmfmac: brcmf_c_preinit_dcmds: Firmware: BCM43362/1 wl0: Jul  5 2013 17:55:22 version 5.90.195.89.10 FWID 01-f4d31c13
-...
-Welcome to Alpine Linux 3.20
-Kernel 7.2.0-gf36b54d9862f-dirty on an armv7l (ttyS0)
-
-exper-t8e login: root
-Password: 
-Welcome to Alpine!
+```text
+exper-t8e:~# modetest -M sun4i-drm -c | grep -A2 LVDS
+53	52	connected	LVDS-1         	162x121		1	52
+  modes:
+  #0 1024x768 54.87 1024 1030 1052 1350 768 772 780 810 60000 flags: ; type: preferred, driver
 exper-t8e:~# ip addr show dev usb0
 2: usb0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast state UP
     inet 172.16.42.1/24 brd 172.16.42.255 scope global usb0
-exper-t8e:~# iw dev wlan0 scan | grep SSID
-	SSID: SUPERONLINE_WiFi_C8AF
-	SSID: SUPERONLINE_Wi-Fi_2319
 ```
 
 ---
@@ -137,8 +119,10 @@ source scripts/00-env.sh
 # Build U-Boot bootloader
 bash scripts/20-build-uboot.sh
 
-# Build Linux Kernel (zImage, DTB, modules)
-bash scripts/30-build-kernel.sh
+# Linux kernel: apply the patch series to a mainline tree, then build out of tree
+# (configs/exper_t8e_defconfig → zImage, both DTBs, modules)
+git -C "$KERNEL_SRC" am "$PWD"/patches/kernel/*.patch
+KERNEL_SRC=/path/to/linux bash scripts/30-build-kernel.sh
 
 # Generate Alpine Linux Rootfs container
 bash scripts/40-alpine-rootfs.sh
@@ -175,7 +159,7 @@ python3 scripts/serial-capture.py /dev/ttyUSB0
 ## Documentation
 
 - [docs/BUILD.md](docs/BUILD.md) — Detailed build prerequisites, compilation steps, and flashing instructions.
-- [docs/FINDINGS.md](docs/FINDINGS.md) — Comprehensive technical reference detailing all 32 hardware and software bring-up findings.
+- [docs/FINDINGS.md](docs/FINDINGS.md) — Comprehensive technical reference detailing all 50 hardware and software bring-up findings.
 - [patches/README.md](patches/README.md) — Overview of U-Boot and Linux kernel patches.
 
 ---

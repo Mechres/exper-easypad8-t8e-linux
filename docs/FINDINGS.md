@@ -5,7 +5,7 @@
 **RAM:** 1 GB DDR3 @ 432 MHz (ZQ 251)  
 **PMIC:** AXP221s via P2WI @ 0x68 (switched from I2C to P2WI mode by U-Boot)  
 **Storage Target:** External MicroSD (`mmc0`), internal NAND untouched  
-**Display:** 1024×768 single-channel LVDS panel (PG12 power, PH13 PWM0, PA25 BL_EN)  
+**Display:** 1024×768 single-channel 24-bit LVDS panel (PG12 power, PH13 PWM0, PA25 BL_EN), driven by `sun4i-drm` (SimpleFB DTB kept as fallback)  
 **Target:** Minimal Alpine Linux booted from SD card → Android Auto terminal
 
 ---
@@ -18,11 +18,11 @@ BROM → boot0 → U-Boot (LCD/SPL) → Linux (Mainline 7.2) → Alpine Linux �
                                                                ↳ usb0 (172.16.42.1) → SSH root@172.16.42.1 [OK]
 ```
 
-A total of 40 technical findings were diagnosed, documented, and resolved.
+A total of 50 technical findings were diagnosed and documented (49 resolved; Finding 48 is a documented negative result).
 
 ---
 
-## Findings 1 to 40
+## Findings 1 to 50
 
 ### Finding 1: ARM32 HighMem & DTB Relocation Conflict
 * **Mechanism:** By default, U-Boot's `bootz` relocates the Flattened Device Tree (FDT) to the top of accessible physical RAM (`0x7fbe0000` / ~1020 MB on 1 GB boards).
@@ -181,6 +181,8 @@ A total of 40 technical findings were diagnosed, documented, and resolved.
 * **Fix:** Replaced single lookup with `for_each_child_of_node()` checking `of_device_is_available()`.
 
 ### Finding 38: LCD Panel Power & Hardware Backlight PWM Automation
+> **SimpleFB boot only.** With the DRM DTB the kernel owns the panel supply and the PWM backlight (Findings 47 and 50); do not run `exper-backlight` there.
+
 * **Mechanism:**
   * Panel power: `PG12` must be driven HIGH to supply power to the LVDS panel electronics (`CONFIG_VIDEO_LCD_POWER="PG12"` in U-Boot).
   * Backlight enable: `PA25` must be driven HIGH (`CONFIG_VIDEO_LCD_BL_EN="PA25"`).
@@ -258,6 +260,8 @@ A total of 40 technical findings were diagnosed, documented, and resolved.
   * Package manager `apk update` synchronized 22,694 Alpine packages directly over Wi-Fi.
 
 ### Finding 45: Power Management & Physical Power Button Screen Toggle Daemon
+> With the DRM DTB `exper-powerd` toggles the kernel backlight class (`bl_power`) instead of calling `exper-backlight` (Finding 50).
+
 * **Investigation:** Evaluated power states (`freeze`, `mem_sleep: [s2idle]`) and physical button events.
 * **Findings:**
   1. Low-power idle / `freeze` state executes cleanly at kernel/SoC level with RTC wakeup (`rtcwake`).
@@ -285,3 +289,34 @@ A total of 40 technical findings were diagnosed, documented, and resolved.
     * `/sys/devices/system/cpu/online`: `0-3`
     * `nproc`: `4`
     * All 4 cores (`processor 0, 1, 2, 3`) fully active and scheduling user tasks.
+
+### Finding 47: `sun4i-drm` (DRM/KMS) Display Bring-Up for the LVDS Panel
+* **Goal:** Replace the U-Boot SimpleFB framebuffer with a real display driver (planes, vsync, kernel-managed panel power and backlight).
+* **Root causes found, in the order they showed up:**
+  1. `display-engine` is `status = "disabled"` in `sun6i-a31.dtsi`, so `sun4i-drm` never bound. The board DTS must set `&de { status = "okay"; }`.
+  2. The component master only completes when `sun4i-backend`, `sun6i-drc`, `sun4i-tcon` and `sun4i-drm` are all loaded (`/etc/modules-load.d/exper-drm.conf`).
+  3. `sun6i_a31s_quirks` in `sun4i_tcon.c` lacked `supports_lvds`, `has_lvds_alt` and `setup_lvds_phy`, so TCON0 failed to bind with `-22` as soon as a `panel-lvds` was attached. Fixed by kernel patch 0008 (same LVDS PHY setup as the A33).
+  4. The A31 dtsi has no PWM controller node and no LVDS pin group; `sun6i-a31s-exper-t8e-drm.dts` (patch 0010) adds `pwm` (PH13 = PWM0), `lcd_lvds_pins` (PD0–PD9, `lvds0`), the `panel-lvds` node, a `pwm-backlight` (50 kHz, PA25 enable), a fixed regulator for PG12 and the `tcon0_out` endpoint to the panel.
+* **Panel parameters** (FEX `[lcd0_para]` and U-Boot `CONFIG_VIDEO_LCD_MODE`): `lcd_lvds_colordepth = 0` means 24 bit and `lcd_lvds_mode = 0` means VESA mapping, so `data-mapping = "vesa-24"`. Totals 1350×810 with `hback = 298`, `hfront = 6`, `hsync = 22`, `vback = 30`, `vfront = 4`, `vsync = 8` (the FEX `hbp`/`vbp` include the sync length) at a 60 MHz pixel clock, giving 54.87 Hz.
+* **Misleading first attempt:** `jeida-18` with a 65.6 MHz pixel clock lit the panel and showed readable console text, but "black" was a washed-out grey-green. A pure bit-order mismatch cannot do that (black is all zeros), so suspect the electrical/lane side: 18-bit mode drives only three of the four LVDS data lanes of this 24-bit panel. The fix changed the data mapping/depth and the pixel clock together, so which of the two mattered was not isolated.
+* **PHY verification:** TCON0 reads back `LVDS_ANA0 = 0xc1f40320` and `LVDS_IF = 0x80100000`, exactly what U-Boot's sequence produces for 24 bit (`0x40040320 | EN_MB | DRVC | DRVD(0xf)`).
+* **CMA:** The default 16 MB CMA pool cannot hold the fbdev console buffer plus four 1024×614 dumb buffers; boot with `cma=64M`.
+* **Result:** `/sys/class/drm/card0-LVDS-1` is `connected`/`enabled`, `modetest` reports `1024x768 54.87`, SMPTE colour bars are correct, fbcon runs on `sun4i-drmdrmfb`, and an XRGB8888 overlay plane (`modetest -P`) displays 1:1 (no scaling).
+* **Boot DTBs:** `sun6i-a31s-exper-t8e-drm.dtb` (DRM, default) and `sun6i-a31s-exper-t8e.dtb` (SimpleFB fallback).
+
+### Finding 48: DE1 Display Frontend (Hardware Scaler) Produces No Output on the A31s
+* **Goal:** Scale an 800×480 video plane to the 1024×768 panel in hardware (zero CPU).
+* **What was done:** `allwinner,sun6i-a31-display-frontend` is missing from `sun4i_frontend_of_table` (mainline has the DTS nodes and binding but no driver match), so it was added (A10 and A33 quirk data both tried); both frontends bind and `sun4i-backend` finds its frontend. A `frontend_idx` module parameter was used to feed BE0 from FE0 or FE1.
+* **Evidence that the registers are right:** read back through `/dev/mem`: input/output sizes, scale factors (`0xc800` = 800/1024), buffer addresses, line strides, input/output formats, the full coefficient tables, `FRM_CTRL = 0x10003` (start, `REG_RDY`, `COEF_RDY`); BE layer 1 has `VDOEN` set with the right size and coordinates; clocks (`fe0` 300 MHz, `dram-fe0`) and resets are enabled.
+* **Result:** the overlay stays empty. A scaled RGB plane showed a black area with a thin vertical line, an unscaled NV12 plane showed nothing; no visible picture with either FE0 or FE1. `FRM_CTRL` keeps `REG_RDY`/`COEF_RDY` set and never self-clears, i.e. the frontend never latches the configuration. Manually toggling the unused bits of `BE0_ATTCTL1`, hammering `FRM_CTRL`, and swapping FE0/FE1 changed nothing. No A31 DEFE/DEBE register documentation or BSP source was available.
+* **Conclusion:** unresolved; the backend path without the frontend (XRGB overlay planes) works. The frontend patches are deliberately not part of this patch series. Software scaling (NEON bilinear) reaches ~70 fps for 800×480 → 1024×614, FFmpeg `swscale` only 25–40 fps.
+
+### Finding 49: Clean Kernel, Debug-Free Command Line and Boot Time
+* **Change:** The bring-up kernel (probes in `head.S`, `setup.c`, `8250_*`, `i2c-mv64xxx`, `printk`, `dd.c`, `brk_raw.h`) was replaced by the 10-patch series in `patches/kernel/` and `configs/exper_t8e_defconfig`: `CONFIG_DEBUG_LL`/`DEBUG_UNCOMPRESS` off, log buffer 128 KB, and `debug initcall_debug ignore_loglevel loglevel=8` replaced by `loglevel=4`.
+* **Gotcha:** With `CONFIG_CMDLINE_EXTEND` the built-in command line is appended **after** the bootloader's, so it can not be overridden from `boot.scr`; the debug flags had to be removed from `CONFIG_CMDLINE` itself.
+* **Measured on the tablet:** `Run /sbin/init` at 1.76 s and `sun4i-drm` initialised at 4.5 s (the debug kernel took 51.3 s to reach the same point); `dmesg` shrank from thousands of lines to about 300 and the bring-up `Call trace:` dumps are gone. The speed-up was not bisected between `initcall_debug`, `ignore_loglevel` and the probe prints, which all went away together.
+* **Build:** `scripts/30-build-kernel.sh` builds out of tree from the defconfig and installs a new modules directory; keep the previous release directory on the card while testing a new kernel, so the old kernel can still be booted by pointing `boot.scr` back at it.
+
+### Finding 50: Userspace `exper-backlight` Must Not Run Next to the Kernel Backlight
+* **Mechanism:** `exper-backlight` programs the PIO and PWM registers directly through `/dev/mem`. With the DRM DTB the kernel already owns the PG12 supply (`regulator-fixed`), the PH13 PWM (`pwm-sun4i`) and the PA25 enable (`pwm-backlight`), so touching those registers behind its back can corrupt the PWM state.
+* **Fix:** `rootfs/alpine/etc/local.d/01-backlight.start` now runs the helper only when `/sys/class/backlight/backlight` does not exist (SimpleFB boot). `scripts/exper-powerd.c` writes `bl_power` (0 = on, 4 = off) on the backlight class when it is available and falls back to `exper-backlight` otherwise; `EXPER_POWERD_INPUT` and `EXPER_POWERD_BACKLIGHT_DIR` override the paths for testing.

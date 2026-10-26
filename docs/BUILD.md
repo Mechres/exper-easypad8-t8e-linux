@@ -45,19 +45,26 @@ source scripts/00-env.sh
 
 ## 3. Building the Linux Kernel
 
-1. Apply the clean kernel patch series from `patches/kernel/` to a mainline Linux tree (6.12+ or 7.x):
+1. Apply the kernel patch series from `patches/kernel/` (10 patches) to a mainline Linux 7.2-rc tree (base commit
+   `cb8a75eec`, or any tree that contains it):
    ```bash
    cd "$KERNEL_SRC"
    git am /path/to/exper-easypad8-t8e/patches/kernel/*.patch
    ```
-2. Build the kernel zImage, Device Tree blob, and kernel modules:
+2. Build the kernel zImage, both Device Tree blobs and the kernel modules. The script builds out of tree from
+   `configs/exper_t8e_defconfig` (no bring-up probes, no `DEBUG_LL`, no debug flags on the command line):
    ```bash
-   bash scripts/30-build-kernel.sh
+   KERNEL_SRC=/path/to/linux bash scripts/30-build-kernel.sh
    ```
+   (`SYNC_DTS=1` copies `dts/*.dts` over the tree's copies, handy while editing the device trees.)
 3. Build artifacts generated in `kernel/`:
    - `kernel/zImage`
-   - `kernel/sun6i-a31s-exper-t8e.dtb`
-   - `kernel/modules/`
+   - `kernel/sun6i-a31s-exper-t8e-drm.dtb` — default boot DTB: `sun4i-drm` + LVDS panel + PWM backlight
+   - `kernel/sun6i-a31s-exper-t8e.dtb` — SimpleFB fallback (U-Boot framebuffer only)
+   - `kernel/modules/<release>/`
+4. The kernel command line (in `uboot/boot.cmd`) needs `cma=64M`: the default 16 MB CMA pool is too small for the fbdev console
+   buffer plus several 1024×768 DRM buffers. Note that the command line baked into the kernel is appended *after* the
+   bootloader's (`CONFIG_CMDLINE_EXTEND`), so options in `boot.cmd` cannot override it.
 
 ---
 
@@ -88,10 +95,11 @@ This prepares:
    sudo bash scripts/50-sdcard-alpine.sh /dev/sdX
    ```
    *Partition Layout:*
-   - `sdX1` (64 MB, FAT16, label `EXPEBOOT`): `boot.scr`, `zImage`, `sun6i-a31s-exper-t8e.dtb`
+   - `sdX1` (64 MB, FAT16, label `EXPEBOOT`): `boot.scr`, `zImage`, `sun6i-a31s-exper-t8e-drm.dtb`
    - `sdX2` (Remainder, ext4, label `experoot`): Alpine Linux root filesystem
 
-2. To update only the kernel and DTB on an existing SD card without re-formatting:
+2. To update only the kernel and DTBs on an existing SD card without re-formatting (keep the previous kernel's
+   `/lib/modules/<release>` on the card until the new one boots, so you can point `boot.scr` back at it):
    ```bash
    sudo bash scripts/51-update-kernel-sdcard.sh /dev/sdX
    ```
