@@ -26,10 +26,10 @@ if command -v mkimage >/dev/null 2>&1; then
     MKIMAGE="mkimage"
 elif [ -x "$PRJ/uboot/mkimage" ]; then
     MKIMAGE="$PRJ/uboot/mkimage"
-elif [ -x "$ROOT_PRJ/piranha-a10/uboot/u-boot/tools/mkimage" ]; then
-    MKIMAGE="$ROOT_PRJ/piranha-a10/uboot/u-boot/tools/mkimage"
+elif [ -n "${UBOOT_SRC:-}" ] && [ -x "$UBOOT_SRC/tools/mkimage" ]; then
+    MKIMAGE="$UBOOT_SRC/tools/mkimage"
 fi
-[ -n "$MKIMAGE" ] && [ -x "$MKIMAGE" ] || { echo "ERROR: mkimage tool not found!"; exit 1; }
+[ -n "$MKIMAGE" ] && [ -x "$MKIMAGE" ] || { echo "ERROR: mkimage not found (install u-boot-tools / uboot-tools, or set UBOOT_SRC to a built U-Boot tree)"; exit 1; }
 
 # 1. Write New U-Boot SPL (Non-Secure/HYP + PSCI active, see Finding 3)
 echo "==> Writing Non-Secure/PSCI U-Boot (Sector 8)..."

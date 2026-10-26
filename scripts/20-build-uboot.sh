@@ -5,8 +5,15 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/00-env.sh"
 
-UBOOT_SRC="${UBOOT_SRC:-$ROOT_PRJ/piranha-a10/uboot/u-boot}"
+UBOOT_SRC="${UBOOT_SRC:-$ROOT_PRJ/u-boot}"
 echo "U-Boot source directory: $UBOOT_SRC"
+if [ ! -f "$UBOOT_SRC/Makefile" ]; then
+    echo "ERROR: no U-Boot tree at $UBOOT_SRC"
+    echo "       git clone https://source.denx.de/u-boot/u-boot.git \"$UBOOT_SRC\""
+    echo "       cd \"$UBOOT_SRC\" && git am \"$PRJ\"/patches/uboot/*.patch"
+    echo "       (or point UBOOT_SRC at an existing checkout)"
+    exit 1
+fi
 
 # Copy Config and DTS
 cp "$PRJ/uboot/exper_t8e_defconfig" "$UBOOT_SRC/configs/exper_t8e_defconfig"

@@ -23,15 +23,15 @@ if command -v mkimage >/dev/null 2>&1; then
     MKIMAGE="mkimage"
 elif [ -x "$PRJ/uboot/mkimage" ]; then
     MKIMAGE="$PRJ/uboot/mkimage"
-elif [ -x "$ROOT_PRJ/piranha-a10/uboot/u-boot/tools/mkimage" ]; then
-    MKIMAGE="$ROOT_PRJ/piranha-a10/uboot/u-boot/tools/mkimage"
+elif [ -n "${UBOOT_SRC:-}" ] && [ -x "$UBOOT_SRC/tools/mkimage" ]; then
+    MKIMAGE="$UBOOT_SRC/tools/mkimage"
 fi
 
 # 1. Check input files
 for f in "$UBOOT" "$ZIMG" "$DTB"; do
     [ -f "$f" ] || { echo "ERROR: Missing file: $f"; exit 1; }
 done
-[ -n "$MKIMAGE" ] && [ -x "$MKIMAGE" ] || { echo "ERROR: mkimage tool not found!"; exit 1; }
+[ -n "$MKIMAGE" ] && [ -x "$MKIMAGE" ] || { echo "ERROR: mkimage not found (install u-boot-tools / uboot-tools, or set UBOOT_SRC to a built U-Boot tree)"; exit 1; }
 [ -d "$RFS" ] || { echo "ERROR: Rootfs directory not found: $RFS"; exit 1; }
 
 echo "==> Input files verified."

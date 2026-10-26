@@ -9,19 +9,26 @@ This document provides step-by-step instructions to compile U-Boot, build the Li
 ### Host System Requirements
 - Linux x86_64 or aarch64 workstation
 - Standard build tools: `git`, `make`, `gcc`, `bison`, `flex`, `swig`, `python3`, `libssl-dev`, `bc`
-- Podman or Docker (for rootfs container building)
+- Podman and `qemu-user-static` with the `qemu-arm` binfmt handler registered (the rootfs script builds the armv7 Alpine tree in a container)
 - ARMv7 cross-compiler toolchain: `arm-linux-gnueabihf-` or Bootlin `armv7-eabihf--glibc`
 
-### Environment Setup
-All build scripts inherit environment settings from `scripts/00-env.sh`. You can configure the paths using environment variables:
+### Getting the sources
+Nothing outside this repository is assumed. Default locations are siblings of the repository directory, and every one can be overridden:
+
+| What | Default | Override | How to get it |
+| :--- | :--- | :--- | :--- |
+| Cross toolchain | auto-detected from `PATH` | `TOOLCHAIN_DIR` (its `bin/`), `CROSS_COMPILE` | distro package `gcc-arm-linux-gnueabihf`, or a [Bootlin](https://toolchains.bootlin.com/) `armv7-eabihf--glibc--stable` release |
+| Linux kernel | `../linux` | `KERNEL_SRC` | `git clone https://github.com/torvalds/linux.git ../linux` (base commit `cb8a75eec`, see section 3) |
+| U-Boot | `../u-boot` | `UBOOT_SRC` | `git clone https://source.denx.de/u-boot/u-boot.git ../u-boot` |
+| `mkimage` | from `PATH` | `UBOOT_SRC` (uses `tools/mkimage`) | distro package `u-boot-tools` / `uboot-tools` |
 
 ```bash
-# Optional: specify custom paths if not using defaults
+# Example: use an unpacked Bootlin toolchain and existing checkouts
 export TOOLCHAIN_DIR="/path/to/arm-toolchain/bin"
 export KERNEL_SRC="/path/to/linux"
 export UBOOT_SRC="/path/to/u-boot"
 
-# Source the environment
+# Source the environment (prints the detected cross compiler)
 source scripts/00-env.sh
 ```
 
