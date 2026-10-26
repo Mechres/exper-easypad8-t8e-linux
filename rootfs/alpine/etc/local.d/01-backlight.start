@@ -1,0 +1,5 @@
+#!/bin/sh
+# SimpleFB boot (sun6i-a31s-exper-t8e.dtb): power the panel and backlight from userspace.
+# DRM boot (sun6i-a31s-exper-t8e-drm.dtb): the kernel owns them (panel-lvds, pwm-backlight,
+# /sys/class/backlight/backlight), so do not poke the PIO/PWM registers behind its back.
+[ -d /sys/class/backlight/backlight ] || /usr/local/bin/exper-backlight
