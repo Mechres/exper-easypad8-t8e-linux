@@ -11,6 +11,8 @@ Standalone bring-up project and reproducible build tree for running modern mainl
 
 Internal NAND/eMMC flash remains completely untouched; the entire system boots cleanly from an external MicroSD card. Removing the SD card restores the factory stock Android system.
 
+**Built on this port:** [exper-t8e-android-auto](https://github.com/Mechres/exper-t8e-android-auto), an experimental wireless Android Auto head unit for this tablet (DRM video output with a NEON scaler, touch forwarding, audio over the 3.5 mm jack, power-key daemon).
+
 ---
 
 ## Hardware Specifications
