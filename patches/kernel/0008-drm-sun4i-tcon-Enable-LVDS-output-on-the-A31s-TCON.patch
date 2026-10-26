@@ -1,0 +1,35 @@
+From bfe0d7bd9a39fdcfbef93f32e23f36ddb67adfdc Mon Sep 17 00:00:00 2001
+From: Mechres <164776284+Mechres@users.noreply.github.com>
+Date: Tue, 27 Oct 2026 01:18:20 +0300
+Subject: [PATCH] drm/sun4i: tcon: Enable LVDS output on the A31s TCON
+
+sun6i_a31s_quirks lacked supports_lvds, has_lvds_alt and setup_lvds_phy, so
+sun4i_tcon_bind() returned -EINVAL for a panel-lvds on A31s ("failed to bind
+lcd-controller"). Use the same LVDS PHY setup as the A33. On the Exper Easypad T8E (24 bit
+panel) TCON0 reads back LVDS_ANA0 = 0xc1f40320, which is exactly the value of U-Boot's
+sequence (0x40040320 | EN_MB | DRVC | DRVD(0xf)), and LVDS_IF = 0x80100000.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ drivers/gpu/drm/sun4i/sun4i_tcon.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/drivers/gpu/drm/sun4i/sun4i_tcon.c b/drivers/gpu/drm/sun4i/sun4i_tcon.c
+index 960e83c82..9731a2cda 100644
+--- a/drivers/gpu/drm/sun4i/sun4i_tcon.c
++++ b/drivers/gpu/drm/sun4i/sun4i_tcon.c
+@@ -1473,8 +1473,11 @@ static const struct sun4i_tcon_quirks sun6i_a31_quirks = {
+ static const struct sun4i_tcon_quirks sun6i_a31s_quirks = {
+ 	.has_channel_0		= true,
+ 	.has_channel_1		= true,
++	.has_lvds_alt		= true,
+ 	.needs_de_be_mux	= true,
+ 	.dclk_min_div		= 1,
++	.setup_lvds_phy		= sun6i_tcon_setup_lvds_phy,
++	.supports_lvds		= true,
+ };
+ 
+ static const struct sun4i_tcon_quirks sun7i_a20_tcon0_quirks = {
+-- 
+2.56.0
+

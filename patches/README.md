@@ -31,3 +31,11 @@ Applied against mainline Linux (6.12+ / 7.x):
    Guards against NULL `core->dev` in `clk_pm_runtime_get()` and `clk_pm_runtime_put()` to avoid crash on clock providers lacking associated struct device (e.g. Allwinner CCU).
 7. `0007-of-platform-Populate-first-available-simple-framebu.patch`:
    Iterates over `/chosen` nodes to bind the first available `simple-framebuffer` instead of stopping at disabled template nodes.
+8. `0008-drm-sun4i-tcon-Enable-LVDS-output-on-the-A31s-TCON.patch`:
+   Adds `supports_lvds`, `has_lvds_alt` and the A33-style `setup_lvds_phy` to `sun6i_a31s_quirks`; without it `sun4i-drm` fails to bind TCON0 with `-22` as soon as a `panel-lvds` is attached.
+9. `0009-ARM-dts-sun6i-exper-t8e-Match-the-running-board-conf.patch`:
+   Brings the T8E board Device Tree in line with what boots on the tablet (AXP221 on P2WI with its NMI GPIO, Wi-Fi power sequence on PL5, codec routing, mmc aliases, no cpufreq OPPs).
+10. `0010-ARM-dts-sun6i-exper-t8e-Add-a-DRM-sun4i-drm-variant-.patch`:
+    Adds `sun6i-a31s-exper-t8e-drm.dts` (display engine, 1024×768 24-bit VESA LVDS panel, PWM backlight, PG12 panel supply, LVDS pins) and its Makefile target.
+
+The DE1 display frontend (hardware scaler) is intentionally not part of the series: it produces no output on the A31s (see Finding 48 in `docs/FINDINGS.md`).

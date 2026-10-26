@@ -1,0 +1,268 @@
+From 536355cb791a73a5767eb31b9fed44c71f0ce0ff Mon Sep 17 00:00:00 2001
+From: Mechres <164776284+Mechres@users.noreply.github.com>
+Date: Tue, 27 Oct 2026 01:18:45 +0300
+Subject: [PATCH] ARM: dts: sun6i: exper-t8e: Match the running board
+ configuration
+
+Sync the T8E device tree with what boots on the tablet: AXP221 on P2WI with its NMI GPIO
+and battery/AC supplies, Wi-Fi power sequence on PL5, codec routing with the PL4 amplifier
+enable, aliases for mmc0/mmc1, cpu0 cpu-supply/operating-points deleted so cpufreq-dt
+does not bind, and the HDMI simple-framebuffer node removed.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ .../dts/allwinner/sun6i-a31s-exper-t8e.dts    | 162 +++++++++---------
+ 1 file changed, 82 insertions(+), 80 deletions(-)
+
+diff --git a/arch/arm/boot/dts/allwinner/sun6i-a31s-exper-t8e.dts b/arch/arm/boot/dts/allwinner/sun6i-a31s-exper-t8e.dts
+index 167a6f6f3..021574646 100644
+--- a/arch/arm/boot/dts/allwinner/sun6i-a31s-exper-t8e.dts
++++ b/arch/arm/boot/dts/allwinner/sun6i-a31s-exper-t8e.dts
+@@ -13,13 +13,22 @@ / {
+ 	model = "Exper Easypad T8E";
+ 	compatible = "exper,easypad-t8e", "allwinner,sun6i-a31s";
+ 
++	aliases {
++		mmc0 = &mmc0;
++		mmc1 = &mmc1;
++	};
++
+ 	wifi_pwrseq: pwrseq {
+ 		compatible = "mmc-pwrseq-simple";
+-		reset-gpios = <&pio 6 26 GPIO_ACTIVE_LOW>; /* PG26 */
++		/* Allwinner A31s GPL bank base is 181: FEX gpio 186 = 186 - 181 = PL5 */
++		reset-gpios = <&r_pio 0 5 GPIO_ACTIVE_LOW>;
++		clocks = <&rtc 1>; /* CLK_OSC32K_FANOUT */
++		clock-names = "ext_clock";
++		post-power-on-delay-ms = <200>;
+ 	};
+ };
+ 
+-/* Finding 16: PH21 (UART0 RX) is floating — adapter only has RX<->TX
++/* PH21 (UART0 RX) is floating — adapter only has RX<->TX
+  * and GND connected; crosstalk from TX signal generates ghost DR bit.
+  * Adding pull-up to RX pin. */
+ &pio {
+@@ -28,51 +37,31 @@ uart0_ph_pins_pu: uart0-ph-pins-pu {
+ 		function = "uart0";
+ 		bias-pull-up;
+ 	};
++};
++
++/* Prevent cpufreq-dt from binding and crashing with nosmp */
++&cpu0 {
++	/delete-property/ cpu-supply;
++	/delete-property/ operating-points;
++};
+ 
+-	/* Finding 18: vendor FEX twi*=PF definitions are JUNK — mainline pinctrl
+-	 * only defines gpio/mmc0/uart0(jtag) on PF4/5; i2c1 function
+-	 * DOES NOT exist on PF ("unsupported function i2c1 on pin PF4"). i2c1/i2c2
+-	 * revert to mainline default pins (PH16/17, PH18/19);
+-	 * if incorrect, i2c NACK error will now be VISIBLE. */
+ 
+-	/* Finding 22: mmc0_pd_pins (PD23-28) here removed —
+-	 * mainline A31 pinctrl does not recognize "mmc0" function
+-	 * on these pins and SD card is actually on PF0-PF5 (see &mmc0). */
++
++/* AXP221 PMIC is connected via P2WI at 0x68 with NMI interrupt. */
++&battery_power_supply {
++	status = "okay";
+ };
+ 
+-/* Finding 18: AXP221s is NOT on P2WI on this board — vendor FEX pmu_twi_id=1,
+- * pmu_twi_addr=0x34 and live Android recon: sun6i-i2c.1/1-0034.
+- * P2WI probe was waiting for transfer to non-existent 0x68 device, blocking
+- * boot indefinitely (heartbeat was ticking). P2WI disabled and PMIC moved
+- * to i2c1 (axp22x label is preserved, axp22x.dtsi regulators are attached
+- * to new node). */
+-&p2wi {
+-	status = "disabled";
+-	/delete-node/ pmic@68;
++&usb_power_supply {
++	status = "okay";
+ };
+ 
+-&i2c1 {
++&ac_power_supply {
+ 	status = "okay";
++};
+ 
+-	axp22x: pmic@34 {
+-		compatible = "x-powers,axp221";
+-		reg = <0x34>;
+-		/* Finding 21: IRQ line INTENTIONALLY ABSENT.
+-		 * In Build 27, AXP221s probe died inside `regmap_add_irq_chip`
+-		 * with "Failed to set masks in 0x40: -6"
+-		 * (=-ENXIO, mv64xxx FSM 0x20/0x30/0x48 = address/data NACK)
+-		 * -> mfd_add_devices never runs, dcdc1 never registers, mmc0
+-		 * remained deferred forever.
+-		 * axp20x_match_device(): "if irq <= 0, regulator-only cells"
+-		 * — mainline's default, safe path for boards without IRQ.
+-		 * This way probe goes directly to mfd_add_devices without
+-		 * touching the bus; irq mask write (0x40) is never performed.
+-		 * NOTE: real IRQ line (r_intc/AXP NMI) will be added back after
+-		 * comms is proven — at that time, r_intc cell format
+-		 * (<0 IRQ_TYPE_LEVEL_LOW>, not GIC_SPI!) will also be fixed. */
+-		drivevbus-supply = <&reg_vcc5v0>;
+-		x-powers,drive-vbus-en;
+-	};
++&i2c1 {
++	status = "okay";
+ 
+ 	touchscreen@5d {
+ 		compatible = "goodix,gt911";
+@@ -84,29 +73,17 @@ touchscreen@5d {
+ 	};
+ };
+ 
+-/* Finding 18: link regulator nodes to NEW pmic@34 — early include
+- * linked them to deleted pmic@68; must precede &reg_dldo2 etc.
+- * references. */
+-#include "axp22x.dtsi"
+-
+ &i2c2 {
+ 	status = "okay";
+ 
+-	accelerometer@18 {
++	accelerometer@19 {
+ 		compatible = "st,lis3dh-accel";
+-		/* Finding 22: scan found 0x19 (lis3dh SA0=1), not 0x18 */
+ 		reg = <0x19>;
++		interrupt-parent = <&pio>;
++		interrupts = <0 9 IRQ_TYPE_EDGE_RISING>; /* PA9 */
+ 	};
+ };
+ 
+-/* Finding 22: enabled TWI0 (PH14/PH15) for scan to hunt for PMIC —
+- * scans of i2c1 (PH16/17, touchscreen 0x5d present) and i2c2 (accelerometer 0x19)
+- * DID NOT show AXP at 0x34. Even though FEX says pmu_twi_id=1, AXP may be
+- * on another bus; i2cscan in mv64xxx probe will show this. */
+-&i2c0 {
+-	status = "okay";
+-};
+-
+ &lradc {
+ 	vref-supply = <&reg_aldo3>;
+ 	status = "okay";
+@@ -119,16 +96,7 @@ button-1000 {
+ 	};
+ };
+ 
+-/* Finding 22: SD card is on PF0-PF5, power is always on, NOT dependent on PMIC.
+- * PROOF: U-Boot's own DTS (sun6i-a31s-exper-t8e.dts) reads SD with exactly
+- * this configuration and loads zImage+dtb on every boot.
+- * FEX [mmc0_para] PD23-PD28 was wrong (boilerplate like TWI pin table):
+- * mainline pinctrl does not recognize "mmc0" function on PD23-28 at all ->
+- * "unsupported function mmc0 on pin PD23" + "there are no valid maps" ->
+- * mmc0 was falling into -EPROBE_DEFER. mmc0_pd_pins overrides in DTS
+- * was removed, dtsi default mmc0_pins (PF0-PF5) is used.
+- * vmmc-supply deleted -> mmc0 is no longer dependent on dcdc1 (AXP) ->
+- * rootfs chain can boot without PMIC. */
++/* MicroSD slot (MMC0) on PF0-PF5 */
+ &mmc0 {
+ 	/delete-property/ vmmc-supply;
+ 	/delete-property/ cd-gpios;
+@@ -136,12 +104,29 @@ &mmc0 {
+ 	status = "okay";
+ };
+ 
++/* SDIO WiFi (MMC1) on PG0-PG5 */
+ &mmc1 {
+ 	vmmc-supply = <&reg_dldo1>;
+ 	mmc-pwrseq = <&wifi_pwrseq>;
+ 	bus-width = <4>;
+ 	non-removable;
+ 	status = "okay";
++
++	brcmf: wifi@1 {
++		reg = <1>;
++		compatible = "brcm,bcm4329-fmac";
++		interrupt-parent = <&r_pio>;
++		/* FEX gpio 187 = 187 - 181 = PL6 */
++		interrupts = <0 6 IRQ_TYPE_LEVEL_LOW>;
++		interrupt-names = "host-wake";
++	};
++};
++
++&reg_dldo1 {
++	regulator-min-microvolt = <3300000>;
++	regulator-max-microvolt = <3300000>;
++	regulator-name = "vcc-wifi";
++	regulator-always-on;
+ };
+ 
+ &reg_dldo2 {
+@@ -151,32 +136,25 @@ &reg_dldo2 {
+ 	regulator-always-on;
+ };
+ 
++&reg_dldo4 {
++	regulator-min-microvolt = <3300000>;
++	regulator-max-microvolt = <3300000>;
++	regulator-name = "vcc-wifi-clk";
++	regulator-always-on;
++};
++
+ &reg_dc1sw {
+ 	regulator-always-on;
+ };
+ 
+-/* Finding 24: USB gadget (musb/UDC) was also blocked by AXP.
+- * sun4i-usb-phy probe requires three supplies, all three going to AXP221s;
+- * since AXP does not respond on any TWI, these regulator/power-supply
+- * devices never register:
+- *   usb0_vbus_power-supply = <&usb_power_supply>   (x-powers,axp221-usb-power-supply)
+- *   usb0_vbus-supply       = <&reg_drivevbus>      (AXP drivevbus)
+- *   usb1_vbus-supply       = <&reg_dldo1>          (AXP dldo1)
+- * Result: phy -517 -> musb-sunxi (extcon + phy chain) -517 -> UDC never
+- * registers -> boot log shows "g_ether: couldn't find an available UDC".
+- * (No error is printed for first supply: phy-sun4i-usb.c:764 `if (!vsp)
+- * return -EPROBE_DEFER` is silent; second is also not printed via dev_err_probe.)
+- * All three are deleted: in gadget (device) mode, feeding external VBUS
+- * is not required; phy driver accepts NULL vbus/vbus_power_supply
+- * (all usages are NULL-guarded: phy-sun4i-usb.c:423/439/454/884).
+- * For host mode (USB flash drive/keyboard attached to tablet), VBUS rail
+- * will be added back later — hardware status of rail will be verified from FEX. */
+ &usbphy {
+ 	/delete-property/ usb0_vbus_power-supply;
+ 	/delete-property/ usb0_vbus-supply;
+ 	/delete-property/ usb1_vbus-supply;
+ };
+ 
++/delete-node/ &simplefb_hdmi;
++
+ &simplefb_lcd {
+ 	/delete-property/ vcc-lcd-supply;
+ 	/delete-property/ vcc-pg-supply;
+@@ -187,3 +165,27 @@ &uart0 {
+ 	pinctrl-0 = <&uart0_ph_pins_pu>;
+ 	status = "okay";
+ };
++
++&r_pio {
++	clko_pm7_pin: clko-pm7-pin {
++		pins = "PM7";
++		function = "rtc";
++	};
++};
++
++&rtc {
++	pinctrl-names = "default";
++	pinctrl-0 = <&clko_pm7_pin>;
++};
++
++&codec {
++	allwinner,audio-routing =
++		"Headphone", "HP",
++		"Speaker", "LINEOUT",
++		"MIC1", "Mic",
++		"MIC2", "Headset Mic",
++		"Mic", "MBIAS",
++		"Headset Mic", "HBIAS";
++	allwinner,pa-gpios = <&r_pio 0 4 GPIO_ACTIVE_HIGH>; /* PL4 */
++	status = "okay";
++};
+-- 
+2.56.0
+

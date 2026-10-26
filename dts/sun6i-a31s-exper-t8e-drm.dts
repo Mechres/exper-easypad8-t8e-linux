@@ -1,0 +1,104 @@
+// SPDX-License-Identifier: GPL-2.0+ OR X11
+/*
+ * Exper Easypad T8E — sun4i-drm (DE1 backend/frontend + TCON0 LVDS) deneme DTB'si.
+ * Calisan sun6i-a31s-exper-t8e.dts'e dokunmaz; yalnizca ekran hattini ekler.
+ * Panel verileri FEX [lcd0_para]'dan: 1024x768, ht=1350 vt=810, tek kanal LVDS.
+ */
+
+#include "sun6i-a31s-exper-t8e.dts"
+
+#include <dt-bindings/pwm/pwm.h>
+
+/ {
+	model = "Exper Easypad T8E (DRM)";
+
+	panel: panel {
+		compatible = "panel-lvds";
+		backlight = <&backlight>;
+		power-supply = <&reg_lcd_power>;
+		width-mm = <162>;
+		height-mm = <121>;
+		data-mapping = "vesa-24"; /* FEX lcd_lvds_colordepth=0 (24 bit), lcd_lvds_mode=0 (VESA/NS) */
+
+		panel-timing {
+			/* U-Boot: pclk_khz:60000, 1350 x 810 (~55 Hz) */
+			clock-frequency = <60000000>;
+			hactive = <1024>;
+			vactive = <768>;
+			hsync-len = <22>;
+			hback-porch = <298>; /* U-Boot le:298 (toplam 320 = hsync 22 + 298) */
+			hfront-porch = <6>;
+			vsync-len = <8>;
+			vback-porch = <30>; /* U-Boot up:30 (toplam 38 = vsync 8 + 30) */
+			vfront-porch = <4>;
+		};
+
+		port {
+			panel_input: endpoint {
+				remote-endpoint = <&tcon0_out_lvds>;
+			};
+		};
+	};
+
+	backlight: backlight {
+		compatible = "pwm-backlight";
+		pwms = <&pwm 0 20000 0>; /* PH13/pwm0, 50 kHz (lcd_pwm_freq) */
+		enable-gpios = <&pio 0 25 GPIO_ACTIVE_HIGH>; /* PA25 lcd_bl_en */
+		brightness-levels = <0 8 16 32 64 128 200 255>;
+		num-interpolated-steps = <8>;
+		default-brightness-level = <40>;
+	};
+
+	reg_lcd_power: regulator-lcd-power {
+		compatible = "regulator-fixed";
+		regulator-name = "lcd-power";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		gpio = <&pio 6 12 GPIO_ACTIVE_HIGH>; /* PG12 lcd_power */
+		enable-active-high;
+		regulator-boot-on;
+		vin-supply = <&reg_dc1sw>;
+	};
+};
+
+&{/soc} {
+	pwm: pwm@1c21400 {
+		compatible = "allwinner,sun7i-a20-pwm";
+		reg = <0x01c21400 0xc>;
+		clocks = <&osc24M>;
+		#pwm-cells = <3>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pwm0_ph13_pin>;
+		status = "okay";
+	};
+};
+
+&pio {
+	pwm0_ph13_pin: pwm0-ph13-pin {
+		pins = "PH13";
+		function = "pwm0";
+	};
+
+	lcd_lvds_pins: lcd-lvds-pins {
+		pins = "PD0", "PD1", "PD2", "PD3", "PD4",
+		       "PD5", "PD6", "PD7", "PD8", "PD9";
+		function = "lvds0";
+	};
+};
+
+&tcon0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&lcd_lvds_pins>;
+};
+
+&tcon0_out {
+	tcon0_out_lvds: endpoint@0 {
+		reg = <0>;
+		remote-endpoint = <&panel_input>;
+	};
+};
+
+/* mainline sun6i-a31.dtsi'de display-engine varsayilan "disabled"; board acmali */
+&de {
+	status = "okay";
+};
