@@ -15,7 +15,7 @@ ROOT_PRJ="$(cd "$PRJ/.." && pwd)"
 
 UBOOT="$PRJ/uboot/u-boot-sunxi-with-spl.bin"
 ZIMG="$PRJ/kernel/zImage"
-DTB="$PRJ/kernel/sun6i-a31s-exper-t8e.dtb"
+DTB="$PRJ/kernel/sun6i-a31s-exper-t8e-drm.dtb"   # sun4i-drm + LVDS panel (boot DTB)
 RFS="$PRJ/rootfs/alpine"
 
 MKIMAGE=""
@@ -97,7 +97,7 @@ MNT_BOOT=$(mktemp -d)
 mount "$P1" "$MNT_BOOT"
 
 cp "$ZIMG" "$MNT_BOOT/zImage"
-cp "$DTB" "$MNT_BOOT/sun6i-a31s-exper-t8e.dtb"
+cp "$DTB" "$MNT_BOOT/sun6i-a31s-exper-t8e-drm.dtb"
 
 cat > "$MNT_BOOT/boot.cmd" <<'EOF'
 echo ">>> Exper Easypad 8 LowMem Bootloader <<<"
@@ -105,9 +105,9 @@ setenv fdt_high 0x50000000
 setenv initrd_high 0x50000000
 setenv bootm_size 0x10000000
 setenv bootm_boot_mode nonsec
-setenv bootargs console=tty0 console=ttyS0,115200 earlycon=uart8250,mmio32,0x01c28000 root=/dev/mmcblk0p2 rootwait rw panic=0 fbcon=map:0 loglevel=8 ignore_loglevel consoleblank=0 debug initcall_debug
+setenv bootargs console=tty0 console=ttyS0,115200 earlycon=uart8250,mmio32,0x01c28000 root=/dev/mmcblk0p2 rootwait rw panic=0 fbcon=map:0 cma=64M loglevel=4 consoleblank=0
 echo ">>> Loading DTB..."
-load mmc 0:1 0x43000000 sun6i-a31s-exper-t8e.dtb
+load mmc 0:1 0x43000000 sun6i-a31s-exper-t8e-drm.dtb
 fdt addr 0x43000000
 fdt resize 65536
 echo ">>> Loading zImage..."
@@ -128,6 +128,18 @@ MNT_ROOT=$(mktemp -d)
 mount "$P2" "$MNT_ROOT"
 
 rsync -aHAX --numeric-ids --info=progress2 "$RFS/" "$MNT_ROOT/"
+
+# The source tree is owned by the (non-root) build user and lost its setuid bits: fix ownership and
+# permissions on the card (otherwise sshd refuses to start: "/var/empty must be owned by root",
+# /etc/shadow and sudo/su/mount are broken).
+echo "==> Fixing ownership and permissions..."
+chown -R 0:0 "$MNT_ROOT"
+[ -d "$MNT_ROOT/home/exper" ] && chown -R 1000:1000 "$MNT_ROOT/home/exper"
+[ -f "$MNT_ROOT/etc/shadow" ] && { chown 0:42 "$MNT_ROOT/etc/shadow"; chmod 640 "$MNT_ROOT/etc/shadow"; }
+chmod 755 "$MNT_ROOT/var/empty"
+chmod 1777 "$MNT_ROOT/tmp" "$MNT_ROOT/var/tmp" 2>/dev/null || true
+for f in usr/bin/sudo bin/mount bin/umount; do [ -e "$MNT_ROOT/$f" ] && chmod 4755 "$MNT_ROOT/$f"; done
+[ -e "$MNT_ROOT/bin/bbsuid" ] && chmod 4111 "$MNT_ROOT/bin/bbsuid"
 
 sync
 umount "$MNT_ROOT"

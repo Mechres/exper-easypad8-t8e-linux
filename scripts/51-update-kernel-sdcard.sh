@@ -40,10 +40,10 @@ echo "==> Mounting boot partition ($P1)..."
 MNT_BOOT=$(mktemp -d)
 mount "$P1" "$MNT_BOOT"
 
-echo "==> Copying new zImage, zImage.dtb and DTB..."
+echo "==> Copying new zImage and DTBs..."
 cp "$PRJ/kernel/zImage" "$MNT_BOOT/zImage"
-cp "$PRJ/kernel/zImage.dtb" "$MNT_BOOT/zImage.dtb"
 cp "$PRJ/kernel/sun6i-a31s-exper-t8e.dtb" "$MNT_BOOT/sun6i-a31s-exper-t8e.dtb"
+cp "$PRJ/kernel/sun6i-a31s-exper-t8e-drm.dtb" "$MNT_BOOT/sun6i-a31s-exper-t8e-drm.dtb"
 
 cat > "$MNT_BOOT/boot.cmd" <<'EOF'
 echo ">>> Exper Easypad 8 LowMem Bootloader <<<"
@@ -51,9 +51,9 @@ setenv fdt_high 0x50000000
 setenv initrd_high 0x50000000
 setenv bootm_size 0x10000000
 setenv bootm_boot_mode nonsec
-setenv bootargs console=tty0 console=ttyS0,115200 earlycon=uart8250,mmio32,0x01c28000 root=/dev/mmcblk0p2 rootwait rw panic=0 fbcon=map:0 loglevel=8 ignore_loglevel consoleblank=0 debug initcall_debug
+setenv bootargs console=tty0 console=ttyS0,115200 earlycon=uart8250,mmio32,0x01c28000 root=/dev/mmcblk0p2 rootwait rw panic=0 fbcon=map:0 cma=64M loglevel=4 consoleblank=0
 echo ">>> Loading DTB..."
-load mmc 0:1 0x43000000 sun6i-a31s-exper-t8e.dtb
+load mmc 0:1 0x43000000 sun6i-a31s-exper-t8e-drm.dtb
 fdt addr 0x43000000
 fdt resize 65536
 echo ">>> Loading zImage..."

@@ -153,6 +153,14 @@ goodix
 brcmfmac
 EOF
 
+# sun4i-drm needs its component drivers loaded (sun4i-drm itself only binds once backend, DRC and
+# TCON are present); the DRM DTB (sun6i-a31s-exper-t8e-drm.dtb) is the default boot DTB (Finding 47).
+cat > "$RFS/etc/modules-load.d/exper-drm.conf" <<'EOF'
+sun4i-backend
+sun6i-drc
+sun4i-drm
+EOF
+
 # Copy built kernel modules
 echo "==> Copying kernel modules..."
 mkdir -p "$RFS/lib/modules"
