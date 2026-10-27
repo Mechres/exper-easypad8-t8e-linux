@@ -40,6 +40,17 @@
 		};
 	};
 
+	hdmi-connector {
+		compatible = "hdmi-connector";
+		type = "a";
+
+		port {
+			hdmi_con_in: endpoint {
+				remote-endpoint = <&hdmi_out_con>;
+			};
+		};
+	};
+
 	backlight: backlight {
 		compatible = "pwm-backlight";
 		pwms = <&pwm 0 20000 0>; /* PH13/pwm0, 50 kHz (lcd_pwm_freq) */
@@ -101,4 +112,14 @@
 /* mainline sun6i-a31.dtsi'de display-engine varsayilan "disabled"; board acmali */
 &de {
 	status = "okay";
+};
+
+&hdmi {
+	status = "okay";
+};
+
+&hdmi_out {
+	hdmi_out_con: endpoint {
+		remote-endpoint = <&hdmi_con_in>;
+	};
 };
