@@ -27,10 +27,10 @@ Applied against mainline Linux (6.12+ / 7.x):
    Bypasses `DW_UART_USR` BUSY polling and RBR flush during idle entry that freeze the A31s APB bus; bounds `frame_time`; forbids runtime PM clock gating during active console.
 5. `0005-ARM-dts-sun6i-Add-Device-Tree-for-Exper-Easypad-T8E-.patch`:
    Adds board Device Tree `arch/arm/boot/dts/allwinner/sun6i-a31s-exper-t8e.dts` and Makefile target.
-6. `0006-clk-Avoid-NULL-pointer-dereference-in-clk_pm_runtime.patch`:
-   Guards against NULL `core->dev` in `clk_pm_runtime_get()` and `clk_pm_runtime_put()` to avoid crash on clock providers lacking associated struct device (e.g. Allwinner CCU).
-7. `0007-of-platform-Populate-first-available-simple-framebu.patch`:
-   Iterates over `/chosen` nodes to bind the first available `simple-framebuffer` instead of stopping at disabled template nodes.
+6. `0006-clk-Also-require-core-dev-in-the-runtime-PM-get-put-.patch`:
+   Makes `clk_pm_runtime_get()` and `clk_pm_runtime_put()` return early when `core->dev` is NULL. Defensive: it was added while chasing a hang in the i2c1 runtime-resume path before the AXP221 probed, and the exact trigger was not isolated.
+7. `0007-of-platform-Bind-the-first-enabled-simple-framebuffe.patch`:
+   Iterates the `/chosen` children and binds the first *available* `simple-framebuffer` instead of the first match regardless of `status`. Not independently reproduced on mainline.
 8. `0008-drm-sun4i-tcon-Enable-LVDS-output-on-the-A31s-TCON.patch`:
    Adds `supports_lvds`, `has_lvds_alt` and the A33-style `setup_lvds_phy` to `sun6i_a31s_quirks`; without it `sun4i-drm` fails to bind TCON0 with `-22` as soon as a `panel-lvds` is attached.
 9. `0009-ARM-dts-sun6i-exper-t8e-Match-the-running-board-conf.patch`:

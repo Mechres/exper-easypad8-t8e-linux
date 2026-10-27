@@ -1,8 +1,8 @@
 From 762b2f3f30e00965bfcb47b677a6c0bea94daeb7 Mon Sep 17 00:00:00 2001
 From: Mechres <164776284+Mechres@users.noreply.github.com>
 Date: Sun, 25 Oct 2026 15:53:12 +0300
-Subject: [PATCH 3/5] mmc: sunxi-mmc: Fallback ocr_avail when no vmmc regulator
- is supplied
+Subject: [PATCH 03/13] mmc: sunxi-mmc: Fallback ocr_avail when no vmmc
+ regulator is supplied
 
 When a board has an always-on SD power rail without an explicit
 vmmc-supply regulator, host->ocr_avail remains 0, causing

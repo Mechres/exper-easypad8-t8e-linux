@@ -1,13 +1,12 @@
 From bfe0d7bd9a39fdcfbef93f32e23f36ddb67adfdc Mon Sep 17 00:00:00 2001
 From: Mechres <164776284+Mechres@users.noreply.github.com>
 Date: Tue, 27 Oct 2026 01:18:20 +0300
-Subject: [PATCH] drm/sun4i: tcon: Enable LVDS output on the A31s TCON
+Subject: [PATCH 08/13] drm/sun4i: tcon: Enable LVDS output on the A31s TCON
 
 sun6i_a31s_quirks lacked supports_lvds, has_lvds_alt and setup_lvds_phy, so
 sun4i_tcon_bind() returned -EINVAL for a panel-lvds on A31s ("failed to bind
-lcd-controller"). Use the same LVDS PHY setup as the A33. On the Exper Easypad T8E (24 bit
-panel) TCON0 reads back LVDS_ANA0 = 0xc1f40320, which is exactly the value of U-Boot's
-sequence (0x40040320 | EN_MB | DRVC | DRVD(0xf)), and LVDS_IF = 0x80100000.
+lcd-controller"). Use the same LVDS PHY setup as the A33. On the Exper Easypad T8E the
+resulting TCON0 LVDS_ANA0 value matches what U-Boot programs (0x40040320).
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 ---

@@ -1,23 +1,20 @@
-From: MechRes <mechres@localhost>
-Date: Sun, 25 Oct 2026 22:30:00 +0300
-Subject: [PATCH 7/7] of: platform: Populate first available simple-framebuffer node in chosen
+From cdeb554c4dec154d04562aaa88b91331cff20da8 Mon Sep 17 00:00:00 2001
+From: Mechres <164776284+Mechres@users.noreply.github.com>
+Date: Tue, 27 Oct 2026 01:18:20 +0300
+Subject: [PATCH 07/13] of: platform: Bind the first enabled simple-framebuffer
+ in /chosen
 
-of_get_compatible_child() stops at the first child matching
-"simple-framebuffer" regardless of its "status" property.
-On SoCs with multiple framebuffer template nodes (e.g. Allwinner A31
-having both framebuffer-lcd0-hdmi [disabled] and framebuffer-lcd0 [okay]
-in /chosen), of_get_compatible_child() returns the disabled HDMI node,
-causing of_platform_device_create() to fail and ignoring the active
-framebuffer device.
+of_get_compatible_child() returns the first simple-framebuffer child of /chosen regardless
+of its status. Iterate the children and use the first one that is available, so a disabled
+node can not shadow an enabled one when the bootloader provides more than one.
 
-Iterate through the children of /chosen using for_each_child_of_node()
-and populate the first simple-framebuffer node that is actually
-available (of_device_is_available(node)).
+Carried over from the Exper Easypad T8E bring-up tree (U-Boot adds framebuffer nodes per
+display pipeline). Not independently reproduced on mainline.
 
-Signed-off-by: MechRes <mechres@localhost>
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 ---
- drivers/of/platform.c | 26 ++++++++++++++------------
- 1 file changed, 14 insertions(+), 12 deletions(-)
+ drivers/of/platform.c | 32 +++++++++++++++++---------------
+ 1 file changed, 17 insertions(+), 15 deletions(-)
 
 diff --git a/drivers/of/platform.c b/drivers/of/platform.c
 index 8b1e76407..c4e693f95 100644
@@ -63,4 +60,5 @@ index 8b1e76407..c4e693f95 100644
  
  		/* Populate everything else. */
 -- 
-2.43.0
+2.56.0
+

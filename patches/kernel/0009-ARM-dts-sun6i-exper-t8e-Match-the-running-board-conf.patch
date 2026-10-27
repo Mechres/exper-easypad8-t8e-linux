@@ -1,7 +1,7 @@
 From 536355cb791a73a5767eb31b9fed44c71f0ce0ff Mon Sep 17 00:00:00 2001
 From: Mechres <164776284+Mechres@users.noreply.github.com>
 Date: Tue, 27 Oct 2026 01:18:45 +0300
-Subject: [PATCH] ARM: dts: sun6i: exper-t8e: Match the running board
+Subject: [PATCH 09/13] ARM: dts: sun6i: exper-t8e: Match the running board
  configuration
 
 Sync the T8E device tree with what boots on the tablet: AXP221 on P2WI with its NMI GPIO

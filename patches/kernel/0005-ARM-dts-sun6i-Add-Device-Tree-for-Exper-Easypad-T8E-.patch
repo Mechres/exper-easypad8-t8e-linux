@@ -1,7 +1,8 @@
 From a6304ce704708c4b181fb8382c22a2ff81d56681 Mon Sep 17 00:00:00 2001
 From: Mechres <164776284+Mechres@users.noreply.github.com>
 Date: Sun, 25 Oct 2026 15:56:55 +0300
-Subject: [PATCH] ARM: dts: sun6i: Add Device Tree for Exper Easypad T8E tablet
+Subject: [PATCH 05/13] ARM: dts: sun6i: Add Device Tree for Exper Easypad T8E
+ tablet
 
 Add board device tree for Exper Easypad 8 (Model T8E), an Allwinner
 A31s tablet with 1 GB RAM, LVDS 1024x768 panel, AXP221s PMIC on I2C1,

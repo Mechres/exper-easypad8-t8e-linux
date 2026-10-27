@@ -1,7 +1,7 @@
 From f178e9ba23fb30c56d0180c8d2fbce1d70412c07 Mon Sep 17 00:00:00 2001
 From: Mechres <164776284+Mechres@users.noreply.github.com>
 Date: Sun, 25 Oct 2026 15:54:15 +0300
-Subject: [PATCH 4/5] serial: 8250_dw: Work around Allwinner A31s APB bus
+Subject: [PATCH 04/13] serial: 8250_dw: Work around Allwinner A31s APB bus
  lockup and cap frame_time
 
 On Allwinner A31s SoC:

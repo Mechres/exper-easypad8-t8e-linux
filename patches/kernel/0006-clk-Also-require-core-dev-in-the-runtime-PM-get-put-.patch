@@ -1,16 +1,17 @@
-From: MechRes <mechres@localhost>
-Date: Sun, 25 Oct 2026 22:00:00 +0300
-Subject: [PATCH 6/6] clk: Avoid NULL pointer dereference in clk_pm_runtime_get/put
+From 5603e77a3673c049c445f996dabde324a5ca5120 Mon Sep 17 00:00:00 2001
+From: Mechres <164776284+Mechres@users.noreply.github.com>
+Date: Tue, 27 Oct 2026 01:18:20 +0300
+Subject: [PATCH 06/13] clk: Also require core->dev in the runtime PM get/put
+ helpers
 
-When cpufreq or clock providers invoke clk_pm_runtime_get() or
-clk_pm_runtime_put() on a clock whose provider did not assign core->dev
-(such as Allwinner sunxi CCU drivers), pm_runtime_resume_and_get(core->dev)
-dereferences core->dev->power at offset 0x119, crashing the system.
+clk_pm_runtime_get()/put() only test core->rpm_enabled before using core->dev. Make them
+bail out when core->dev is NULL as well.
 
-Add a NULL check for core->dev to prevent runtime PM operations on clocks
-lacking an associated struct device.
+Carried over from the Exper Easypad T8E (Allwinner A31s) bring-up tree, where this was
+applied while chasing a hang in the i2c1 (mv64xxx) runtime resume path before the AXP221
+PMIC probed. The exact trigger was not isolated, so treat this as a defensive fix.
 
-Signed-off-by: MechRes <mechres@localhost>
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 ---
  drivers/clk/clk.c | 4 ++--
  1 file changed, 2 insertions(+), 2 deletions(-)
@@ -38,4 +39,5 @@ index 048adfa86..77ed22e70 100644
  
  	pm_runtime_put_sync(core->dev);
 -- 
-2.43.0
+2.56.0
+
