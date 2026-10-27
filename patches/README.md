@@ -45,5 +45,7 @@ Applied against mainline Linux (6.12+ / 7.x):
     Adds the `system-control@1c00000` (SRAM C1 claimed by the video engine) and `video-codec@1c0e000` nodes to `sun6i-a31.dtsi`. The SRAM C window size is copied from the A23 and unverified.
 14. `0014-ARM-dts-sun6i-exper-t8e-Enable-HDMI-in-the-DRM-varia.patch`:
     Adds an `hdmi-connector` and enables `&hdmi` in `sun6i-a31s-exper-t8e-drm.dts`; needs `CONFIG_DRM_SUN4I_HDMI` (set to `m` in `configs/exper_t8e_defconfig`).
+15. `0015-ARM-dts-sun6i-exper-t8e-Keep-the-SDIO-Wi-Fi-powered-.patch`:
+    Adds `keep-power-in-suspend` to the Wi-Fi `&mmc1` node so `brcmfmac` can suspend and resume (without it: `Failed to set pm_flags 1` on suspend and `HT Avail request error: -110` on resume).
 
 The DE1 display frontend (hardware scaler) is intentionally not part of the series: it produces no output on the A31s (see Finding 48 in `docs/FINDINGS.md`).
