@@ -37,5 +37,11 @@ Applied against mainline Linux (6.12+ / 7.x):
    Brings the T8E board Device Tree in line with what boots on the tablet (AXP221 on P2WI with its NMI GPIO, Wi-Fi power sequence on PL5, codec routing, mmc aliases, no cpufreq OPPs).
 10. `0010-ARM-dts-sun6i-exper-t8e-Add-a-DRM-sun4i-drm-variant-.patch`:
     Adds `sun6i-a31s-exper-t8e-drm.dts` (display engine, 1024×768 24-bit VESA LVDS panel, PWM backlight, PG12 panel supply, LVDS pins) and its Makefile target.
+11. `0011-dt-bindings-media-allwinner-Add-A31-video-engine-and.patch`:
+    Adds the `allwinner,sun6i-a31-video-engine`, `allwinner,sun6i-a31-system-control` and `allwinner,sun6i-a31-sram-c1` compatibles.
+12. `0012-media-cedrus-Add-A31-support.patch`:
+    Adds an A31 Cedrus variant with the A20 capabilities (MPEG-2, H.264, VP8) and a 320 MHz module clock request.
+13. `0013-ARM-dts-sun6i-a31-Add-system-control-SRAM-C-and-vide.patch`:
+    Adds the `system-control@1c00000` (SRAM C1 claimed by the video engine) and `video-codec@1c0e000` nodes to `sun6i-a31.dtsi`. The SRAM C window size is copied from the A23 and unverified.
 
 The DE1 display frontend (hardware scaler) is intentionally not part of the series: it produces no output on the A31s (see Finding 48 in `docs/FINDINGS.md`).

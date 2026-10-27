@@ -49,6 +49,9 @@ Internal NAND/eMMC flash remains completely untouched; the entire system boots c
 | **Display (LCD)**| `sun4i-drm` (DE1 backend + TCON0 LVDS) + fbdev emulation | **Working** | `card0` / `LVDS-1` 1024×768 @ 54.87 Hz, XRGB overlay planes, `fbcon` on `sun4i-drmdrmfb`; the SimpleFB DTB stays as fallback (Findings 47, 49) |
 | **Backlight** | `pwm-backlight` (PH13 PWM0, PA25 enable, PG12 supply) | **Working** | `/sys/class/backlight/backlight` (0–56), `bl_power` for on/off |
 | **DE1 hardware scaler** | `sun4i-frontend` (A31 DEFE) | **Not working** | Frontend never produces output on the A31s, see Finding 48; scale in software instead |
+| **Video decoder** | `cedrus` (A31 Cedar VE, `/dev/video0`) | **Probes; decoding not yet verified** | Bound to the A20 variant (MPEG-2, H.264, VP8; `ST12` output). Probe, IRQ and formats are verified on the tablet; no frame has been decoded yet (Finding 51) |
+| **GPU** | PowerVR SGX544 | **Not available** | The A31s has an SGX GPU, not a Mali; there is no mainline driver, so Lima cannot be used (Finding 52) |
+| **Thermal** | `sun4i-ts` sensor (`cpu-thermal`, `&rtp`) | **Working** | `/sys/class/thermal/thermal_zone0/temp` reads the SoC temperature (about 36 °C idle) |
 | **Audio** | Allwinner `sun4i-codec` (`sun6i-a31-codec`) | **Working** | Stereo DAC, Line Out (Speaker amp PL4), Headphone & Mic |
 | **Bluetooth** | `btusb` (External) | **N/A (Not Fitted)** | Internal AP6181 is Wi-Fi only; external USB Bluetooth supported via OTG |
 

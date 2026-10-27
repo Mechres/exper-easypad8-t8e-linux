@@ -1,0 +1,51 @@
+From 9e24c9fe18f5bfea7d37be6d8d7e4372884d8946 Mon Sep 17 00:00:00 2001
+From: Mechres <164776284+Mechres@users.noreply.github.com>
+Date: Tue, 27 Oct 2026 16:38:00 +0300
+Subject: [PATCH 11/13] dt-bindings: media: allwinner: Add A31 video engine and
+ SRAM C1 compatibles
+
+The A31 has the same Cedar video engine block as the A20 (register
+base 0x01c0e000, per-codec register windows) and the same SRAM C1
+claim mechanism, so reuse the A10 SRAM C1 fallback.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ .../bindings/media/allwinner,sun4i-a10-video-engine.yaml        | 1 +
+ .../bindings/sram/allwinner,sun4i-a10-system-control.yaml       | 2 ++
+ 2 files changed, 3 insertions(+)
+
+diff --git a/Documentation/devicetree/bindings/media/allwinner,sun4i-a10-video-engine.yaml b/Documentation/devicetree/bindings/media/allwinner,sun4i-a10-video-engine.yaml
+index 01f2afa02..f67ee5822 100644
+--- a/Documentation/devicetree/bindings/media/allwinner,sun4i-a10-video-engine.yaml
++++ b/Documentation/devicetree/bindings/media/allwinner,sun4i-a10-video-engine.yaml
+@@ -15,6 +15,7 @@ properties:
+     enum:
+       - allwinner,sun4i-a10-video-engine
+       - allwinner,sun5i-a13-video-engine
++      - allwinner,sun6i-a31-video-engine
+       - allwinner,sun7i-a20-video-engine
+       - allwinner,sun8i-a33-video-engine
+       - allwinner,sun8i-h3-video-engine
+diff --git a/Documentation/devicetree/bindings/sram/allwinner,sun4i-a10-system-control.yaml b/Documentation/devicetree/bindings/sram/allwinner,sun4i-a10-system-control.yaml
+index 6e6ab2168..9128c01b5 100644
+--- a/Documentation/devicetree/bindings/sram/allwinner,sun4i-a10-system-control.yaml
++++ b/Documentation/devicetree/bindings/sram/allwinner,sun4i-a10-system-control.yaml
+@@ -40,6 +40,7 @@ properties:
+       - items:
+           - enum:
+               - allwinner,suniv-f1c100s-system-control
++              - allwinner,sun6i-a31-system-control
+               - allwinner,sun7i-a20-system-control
+               - allwinner,sun8i-r40-system-control
+           - const: allwinner,sun4i-a10-system-control
+@@ -89,6 +90,7 @@ patternProperties:
+               - items:
+                   - enum:
+                       - allwinner,sun5i-a13-sram-c1
++                      - allwinner,sun6i-a31-sram-c1
+                       - allwinner,sun7i-a20-sram-c1
+                       - allwinner,sun8i-a23-sram-c1
+                       - allwinner,sun8i-h3-sram-c1
+-- 
+2.56.0
+
