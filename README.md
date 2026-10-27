@@ -58,6 +58,18 @@ Internal NAND/eMMC flash remains completely untouched; the entire system boots c
 
 ---
 
+### Known gaps and open work
+
+| Area | State | Notes |
+|---|---|---|
+| **GPU** | No mainline driver | The A31s has a PowerVR SGX544 MP2, not a Mali; Lima does not apply (Finding 52) |
+| **cpufreq / DVFS** | Disabled | The CPU runs at the U-Boot setting (1008 MHz, 1.2 V). `sun6i-a31s-exper-t8e.dts` deletes `cpu-supply` and `operating-points`, which prints `missing clock-frequency` and `OPP table can't be empty` at boot. Removing that block and adding `clock-frequency` hung the boot without any log output; which part causes it is unknown. Retry step by step with the serial console attached (Findings 46, 55) |
+| **Idle power** | High | About 490 mA on the battery with the screen off, about 425 mA with the panel off and one core online; the source of most of it is not identified (Finding 55) |
+| **Suspend** | s2idle only | Works with the Wi-Fi chip kept powered (patch 0015); the benefit is unmeasured, a resume always turns the backlight on, the USB gadget does not always return, and `exper-powerd` does not suspend the system (Finding 54) |
+| **Battery charging** | Unverified on PC USB | Over a PC USB port the battery is reported as discharging (about -200 to -290 mA) and ran down during long tests. The AXP221 input current limit and charge settings were not checked |
+| **HDMI audio** | Missing | Video works (Finding 53). Mainline `sun4i-hdmi` has no audio support; the A31 user manual documents the audio registers, so a driver is possible |
+| **Camera, ambient light/compass/gyro, vibration motor** | Not applicable or not present | No camera is fitted to the tablet and no sensors or vibration motor are expected; not investigated further |
+
 ## Boot Architecture
 
 ```
