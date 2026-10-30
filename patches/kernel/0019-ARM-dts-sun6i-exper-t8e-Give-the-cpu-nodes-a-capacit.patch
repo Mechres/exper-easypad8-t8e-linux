@@ -1,0 +1,49 @@
+From 41aaa11815a9d67f67e7f10c8e95bd8c8805b902 Mon Sep 17 00:00:00 2001
+From: Mechres <164776284+Mechres@users.noreply.github.com>
+Date: Sat, 31 Oct 2026 01:31:06 +0300
+Subject: [PATCH] ARM: dts: sun6i: exper-t8e: Give the cpu nodes a capacity
+
+The four Cortex-A7 cores are identical, but without capacity-dmips-mhz
+the ARM topology code wants a clock-frequency property in each cpu node
+and logs "missing clock-frequency property" four times at every boot.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ .../dts/allwinner/sun6i-a31s-exper-t8e.dts    | 21 +++++++++++++++++++
+ 1 file changed, 21 insertions(+)
+
+diff --git a/arch/arm/boot/dts/allwinner/sun6i-a31s-exper-t8e.dts b/arch/arm/boot/dts/allwinner/sun6i-a31s-exper-t8e.dts
+index 6f2366ebf..3a6ccf500 100644
+--- a/arch/arm/boot/dts/allwinner/sun6i-a31s-exper-t8e.dts
++++ b/arch/arm/boot/dts/allwinner/sun6i-a31s-exper-t8e.dts
+@@ -28,6 +28,27 @@ wifi_pwrseq: pwrseq {
+ 	};
+ };
+ 
++/*
++ * All four cores are identical Cortex-A7. Without a capacity the ARM topology
++ * code expects a clock-frequency property in every cpu node and prints
++ * "missing clock-frequency property" for each core.
++ */
++&cpu0 {
++	capacity-dmips-mhz = <1024>;
++};
++
++&cpu1 {
++	capacity-dmips-mhz = <1024>;
++};
++
++&cpu2 {
++	capacity-dmips-mhz = <1024>;
++};
++
++&cpu3 {
++	capacity-dmips-mhz = <1024>;
++};
++
+ /* PH21 (UART0 RX) is floating — adapter only has RX<->TX
+  * and GND connected; crosstalk from TX signal generates ghost DR bit.
+  * Adding pull-up to RX pin. */
+-- 
+2.56.0
+

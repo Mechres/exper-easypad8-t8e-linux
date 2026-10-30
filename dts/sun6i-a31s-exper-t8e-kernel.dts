@@ -28,6 +28,27 @@
 	};
 };
 
+/*
+ * All four cores are identical Cortex-A7. Without a capacity the ARM topology
+ * code expects a clock-frequency property in every cpu node and prints
+ * "missing clock-frequency property" for each core.
+ */
+&cpu0 {
+	capacity-dmips-mhz = <1024>;
+};
+
+&cpu1 {
+	capacity-dmips-mhz = <1024>;
+};
+
+&cpu2 {
+	capacity-dmips-mhz = <1024>;
+};
+
+&cpu3 {
+	capacity-dmips-mhz = <1024>;
+};
+
 /* PH21 (UART0 RX) is floating — adapter only has RX<->TX
  * and GND connected; crosstalk from TX signal generates ghost DR bit.
  * Adding pull-up to RX pin. */
