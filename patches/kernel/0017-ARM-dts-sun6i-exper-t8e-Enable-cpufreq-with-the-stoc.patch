@@ -1,0 +1,45 @@
+From cdce07b71f1c37dceeb456f2292b5bf48d7d09d2 Mon Sep 17 00:00:00 2001
+From: Mechres <164776284+Mechres@users.noreply.github.com>
+Date: Fri, 30 Oct 2026 03:05:22 +0300
+Subject: [PATCH] ARM: dts: sun6i: exper-t8e: Enable cpufreq with the stock A31
+ OPP table
+
+The board file deleted cpu-supply and operating-points from cpu0, which kept
+cpufreq-dt from binding (and left "OPP table can't be empty" in the log).
+Remove that block so the OPP table of sun6i-a31.dtsi (480/720/864/1008 MHz at
+1.0/1.1/1.2/1.2 V) and cpu-supply = <&reg_dcdc3> from the reference-design
+tablet include are used.
+
+This depends on the previous commit (settle time for the PLL-CPU): without it
+the first frequency change hangs the system. With both, the schedutil governor
+moves between all four OPPs on the tablet; stress tests of a few minutes showed
+no hang. A single "Runtime PM usage count underflow" panic in sugov on an older
+kernel build was not reproduced on the later builds and its cause is unknown.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ arch/arm/boot/dts/allwinner/sun6i-a31s-exper-t8e.dts | 8 --------
+ 1 file changed, 8 deletions(-)
+
+diff --git a/arch/arm/boot/dts/allwinner/sun6i-a31s-exper-t8e.dts b/arch/arm/boot/dts/allwinner/sun6i-a31s-exper-t8e.dts
+index 51b4d5e23..6f2366ebf 100644
+--- a/arch/arm/boot/dts/allwinner/sun6i-a31s-exper-t8e.dts
++++ b/arch/arm/boot/dts/allwinner/sun6i-a31s-exper-t8e.dts
+@@ -39,14 +39,6 @@ uart0_ph_pins_pu: uart0-ph-pins-pu {
+ 	};
+ };
+ 
+-/* Prevent cpufreq-dt from binding and crashing with nosmp */
+-&cpu0 {
+-	/delete-property/ cpu-supply;
+-	/delete-property/ operating-points;
+-};
+-
+-
+-
+ /* AXP221 PMIC is connected via P2WI at 0x68 with NMI interrupt. */
+ &battery_power_supply {
+ 	status = "okay";
+-- 
+2.56.0
+

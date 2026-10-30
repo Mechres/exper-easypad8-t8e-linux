@@ -47,5 +47,9 @@ Applied against mainline Linux (6.12+ / 7.x):
     Adds an `hdmi-connector` and enables `&hdmi` in `sun6i-a31s-exper-t8e-drm.dts`; needs `CONFIG_DRM_SUN4I_HDMI` (set to `m` in `configs/exper_t8e_defconfig`).
 15. `0015-ARM-dts-sun6i-exper-t8e-Keep-the-SDIO-Wi-Fi-powered-.patch`:
     Adds `keep-power-in-suspend` to the Wi-Fi `&mmc1` node so `brcmfmac` can suspend and resume (without it: `Failed to set pm_flags 1` on suspend and `HT Avail request error: -110` on resume).
+16. `0016-clk-sunxi-ng-sun6i-a31-Let-the-CPU-PLL-settle-after-.patch`:
+    Adds `CCU_FEATURE_LOCK_DELAY` (a fixed 2 ms wait before the PLL lock bit is polled) and uses it for the A31 PLL-CPU. Without it the first cpufreq transition hangs the tablet: the lock bit is already set right after the factors are written and the CPU mux is switched back to an unsettled PLL. 2 ms is empirical (100 us was not enough, the minimum in between was not found).
+17. `0017-ARM-dts-sun6i-exper-t8e-Enable-cpufreq-with-the-stoc.patch`:
+    Removes the `&cpu0` block that deleted `cpu-supply` and `operating-points`, so cpufreq-dt uses the 480/720/864/1008 MHz table (1.0 to 1.2 V on the AXP221 DCDC3). Needs patch 0016.
 
 The DE1 display frontend (hardware scaler) is intentionally not part of the series: it produces no output on the A31s (see Finding 48 in `docs/FINDINGS.md`).

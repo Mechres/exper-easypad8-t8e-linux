@@ -46,6 +46,7 @@ Internal NAND/eMMC flash remains completely untouched; the entire system boots c
 | **WiFi** | Broadcom `brcmfmac` (`wlan0`) | **Working** | SDIO Ampak AP6181 (BCM43362) on mmc1; live scanning verified |
 | **Touchscreen** | `goodix` driver (`input0`) | **Working** | 1024×768 1:1 aligned coordinate space, 5-point multi-touch validated |
 | **Sensors** | ST `lis3dh` IIO driver (`iio:device0`) | **Working** | 3-axis motion & tilt vector sensing with PA9 IRQ |
+| **cpufreq / DVFS** | `cpufreq-dt` + schedutil, AXP221 DCDC3 | **Working** | 480/720/864/1008 MHz at 1.0/1.1/1.2/1.2 V; needs patches 0016 (PLL settle time) and 0017 (DTS). Idle draw about 400 mA instead of about 470 mA (Finding 58). Tested for minutes under stress, not yet as a long soak |
 | **Display (LCD)**| `sun4i-drm` (DE1 backend + TCON0 LVDS) + fbdev emulation | **Working** | `card0` / `LVDS-1` 1024×768 @ 54.87 Hz, XRGB overlay planes, `fbcon` on `sun4i-drmdrmfb`; the SimpleFB DTB stays as fallback (Findings 47, 49) |
 | **HDMI** | `sun4i-drm-hdmi` (`hdmi@1c16000`, `HDMI-A-1`) | **Working** | EDID read, 1920×1080 @ 60 Hz on its own CRTC next to the LVDS panel, hot-plug restores the picture; HDMI audio and CEC not tested (Finding 53) |
 | **Backlight** | `pwm-backlight` (PH13 PWM0, PA25 enable, PG12 supply) | **Working** | `/sys/class/backlight/backlight` (0–56), `bl_power` for on/off |
@@ -63,7 +64,6 @@ Internal NAND/eMMC flash remains completely untouched; the entire system boots c
 | Area | State | Notes |
 |---|---|---|
 | **GPU** | No mainline driver | The A31s has a PowerVR SGX544 MP2, not a Mali; Lima does not apply (Finding 52) |
-| **cpufreq / DVFS** | Disabled | The CPU runs at the U-Boot setting (1008 MHz, 1.2 V). `sun6i-a31s-exper-t8e.dts` deletes `cpu-supply` and `operating-points`, which prints `missing clock-frequency` and `OPP table can't be empty` at boot. Removing that block and adding `clock-frequency` hung the boot without any log output; which part causes it is unknown. Retry step by step with the serial console attached (Findings 46, 55) |
 | **Idle power** | High | About 490 mA on the battery with the screen off, about 425 mA with the panel off and one core online; the source of most of it is not identified (Finding 55) |
 | **Suspend** | s2idle only | Works with the Wi-Fi chip kept powered (patch 0015); the benefit is unmeasured, a resume always turns the backlight on, the USB gadget does not always return, and `exper-powerd` does not suspend the system (Finding 54) |
 | **Battery charging** | Partly solved | The AXP221 VBUS limit was 500 mA; lifting it halves the discharge on a PC USB port, but with the screen on the tablet still draws more than the port gives. It charges with the screen blanked (about +150 mA); a 2 A adapter is the intended supply (Finding 56) |

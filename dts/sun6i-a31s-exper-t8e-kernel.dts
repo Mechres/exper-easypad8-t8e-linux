@@ -39,14 +39,6 @@
 	};
 };
 
-/* Prevent cpufreq-dt from binding and crashing without OPP table (SMP runs at boot frequency) */
-&cpu0 {
-	/delete-property/ cpu-supply;
-	/delete-property/ operating-points;
-};
-
-
-
 /* AXP221 PMIC is connected via P2WI at 0x68 with NMI interrupt. */
 &battery_power_supply {
 	status = "okay";
@@ -110,6 +102,7 @@
 	mmc-pwrseq = <&wifi_pwrseq>;
 	bus-width = <4>;
 	non-removable;
+	keep-power-in-suspend;
 	status = "okay";
 
 	brcmf: wifi@1 {
