@@ -51,5 +51,7 @@ Applied against mainline Linux (6.12+ / 7.x):
     Adds `CCU_FEATURE_LOCK_DELAY` (a fixed 2 ms wait before the PLL lock bit is polled) and uses it for the A31 PLL-CPU. Without it the first cpufreq transition hangs the tablet: the lock bit is already set right after the factors are written and the CPU mux is switched back to an unsettled PLL. 2 ms is empirical (100 us was not enough, the minimum in between was not found).
 17. `0017-ARM-dts-sun6i-exper-t8e-Enable-cpufreq-with-the-stoc.patch`:
     Removes the `&cpu0` block that deleted `cpu-supply` and `operating-points`, so cpufreq-dt uses the 480/720/864/1008 MHz table (1.0 to 1.2 V on the AXP221 DCDC3). Needs patch 0016.
+18. `0018-drm-sun4i-hdmi-Add-HDMI-audio-support.patch`:
+    Adds HDMI audio to `sun4i-drm-hdmi`: an hdmi-codec from the DRM HDMI audio helper, an ASoC CPU DAI with a dmaengine PCM on the audio FIFO port (DRQ 14), a sound card (`sun4i-hdmi`), the audio infoframe and the packet arbiter setup. Needs `CONFIG_DRM_SUN4I_HDMI_AUDIO=y` (set in `configs/exper_t8e_defconfig`); the existing `dmas`/`dma-names` of `hdmi@1c16000` are used, no DTS change. 2 channels, S16_LE/S24_LE, 32/44.1/48 kHz.
 
 The DE1 display frontend (hardware scaler) is intentionally not part of the series: it produces no output on the A31s (see Finding 48 in `docs/FINDINGS.md`).

@@ -1,0 +1,550 @@
+From 6430143a79b596b54414e99393cde6ee1cf1699c Mon Sep 17 00:00:00 2001
+From: Mechres <164776284+Mechres@users.noreply.github.com>
+Date: Fri, 30 Oct 2026 06:41:07 +0300
+Subject: [PATCH] drm/sun4i: hdmi: Add HDMI audio support
+
+The A10/A31 HDMI block takes 32-bit PCM sub-frames through a FIFO port
+fed by a dedicated DMA request line, but the driver never used it. Add
+the pieces needed to play audio over HDMI:
+
+ - an hdmi-codec through the DRM HDMI audio helper, whose prepare/
+   shutdown callbacks program the audio module (reset, DMA mode, format,
+   ACR N/CTS, channel status), start and stop the audio related packet
+   and write the audio infoframe,
+ - an ASoC CPU DAI with a dmaengine PCM on the FIFO port, and a sound
+   card tying it to the codec,
+ - plug notifications so the codec picks up the sink's ELD.
+
+Only 2 channel S16_LE/S24_LE at 32, 44.1 and 48 kHz is offered: the
+FIFO drains too slowly above 48 kHz. AUD_FIFO_CLEAR is a level, not a
+pulse; leaving it set keeps the FIFO empty and the stream ends
+instantly.
+
+The packet arbiter setup moves into sun4i_hdmi_update_packets() so that
+the audio packets can be added and removed while video is running; it
+also no longer inherits stray polarity bits from the timing register.
+
+Tested on an A31s tablet against a monitor with speakers.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ drivers/gpu/drm/sun4i/Kconfig            |  11 ++
+ drivers/gpu/drm/sun4i/Makefile           |   1 +
+ drivers/gpu/drm/sun4i/sun4i_hdmi.h       |  71 +++++++
+ drivers/gpu/drm/sun4i/sun4i_hdmi_audio.c | 224 +++++++++++++++++++++++
+ drivers/gpu/drm/sun4i/sun4i_hdmi_enc.c   |  58 +++++-
+ 5 files changed, 361 insertions(+), 4 deletions(-)
+ create mode 100644 drivers/gpu/drm/sun4i/sun4i_hdmi_audio.c
+
+diff --git a/drivers/gpu/drm/sun4i/Kconfig b/drivers/gpu/drm/sun4i/Kconfig
+index b56ba00aa..28d9ad086 100644
+--- a/drivers/gpu/drm/sun4i/Kconfig
++++ b/drivers/gpu/drm/sun4i/Kconfig
+@@ -27,6 +27,17 @@ config DRM_SUN4I_HDMI
+ 	  Choose this option if you have an Allwinner A10/A10s/A20/A31
+ 	  SoC with an HDMI controller.
+ 
++config DRM_SUN4I_HDMI_AUDIO
++	bool "Allwinner A10/A10s/A20/A31 HDMI Audio Support"
++	depends on DRM_SUN4I_HDMI
++	depends on SND_SOC=y || SND_SOC=DRM_SUN4I_HDMI
++	select DRM_DISPLAY_HDMI_AUDIO_HELPER
++	select SND_SOC_GENERIC_DMAENGINE_PCM
++	select SND_SOC_HDMI_CODEC
++	help
++	  Choose this option if you have an Allwinner A10/A10s/A20/A31
++	  SoC and want to play audio through the HDMI controller.
++
+ config DRM_SUN4I_HDMI_CEC
+ 	bool "Allwinner A10/A10s/A20/A31 HDMI CEC Support"
+ 	depends on DRM_SUN4I_HDMI
+diff --git a/drivers/gpu/drm/sun4i/Makefile b/drivers/gpu/drm/sun4i/Makefile
+index bad7497a0..56318343e 100644
+--- a/drivers/gpu/drm/sun4i/Makefile
++++ b/drivers/gpu/drm/sun4i/Makefile
+@@ -6,6 +6,7 @@ sun4i-drm-y			+= sun4i_drv.o
+ sun4i-drm-y			+= sun4i_framebuffer.o
+ 
+ sun4i-drm-hdmi-y		+= sun4i_hdmi_ddc_clk.o
++sun4i-drm-hdmi-$(CONFIG_DRM_SUN4I_HDMI_AUDIO)	+= sun4i_hdmi_audio.o
+ sun4i-drm-hdmi-y		+= sun4i_hdmi_enc.o
+ sun4i-drm-hdmi-y		+= sun4i_hdmi_i2c.o
+ sun4i-drm-hdmi-y		+= sun4i_hdmi_tmds_clk.o
+diff --git a/drivers/gpu/drm/sun4i/sun4i_hdmi.h b/drivers/gpu/drm/sun4i/sun4i_hdmi.h
+index 65c801cd6..3138eaae5 100644
+--- a/drivers/gpu/drm/sun4i/sun4i_hdmi.h
++++ b/drivers/gpu/drm/sun4i/sun4i_hdmi.h
+@@ -14,6 +14,11 @@
+ 
+ #include <media/cec-pin.h>
+ 
++#ifdef CONFIG_DRM_SUN4I_HDMI_AUDIO
++#include <sound/dmaengine_pcm.h>
++#include <sound/soc.h>
++#endif
++
+ #define SUN4I_HDMI_CTRL_REG		0x004
+ #define SUN4I_HDMI_CTRL_ENABLE			BIT(31)
+ 
+@@ -42,7 +47,32 @@
+ #define SUN4I_HDMI_VID_TIMING_POL_VSYNC		BIT(1)
+ #define SUN4I_HDMI_VID_TIMING_POL_HSYNC		BIT(0)
+ 
++#define SUN4I_HDMI_AUD_CTRL_REG		0x040
++#define SUN4I_HDMI_AUD_CTRL_ENABLE		BIT(31)
++#define SUN4I_HDMI_AUD_CTRL_RESET		BIT(30)
++
++#define SUN4I_HDMI_ADMA_CTRL_REG	0x044
++#define SUN4I_HDMI_ADMA_CTRL_NORMAL_DMA		BIT(31)
++#define SUN4I_HDMI_ADMA_CTRL_REQ_HALF		(0 << 24)
++#define SUN4I_HDMI_ADMA_CTRL_ONE_SAMPLE		BIT(19)
++#define SUN4I_HDMI_ADMA_CTRL_MSB_ALIGN		BIT(18)
++#define SUN4I_HDMI_ADMA_CTRL_WORD_16		(0 << 16)
++#define SUN4I_HDMI_ADMA_CTRL_WORD_24		(2 << 16)
++#define SUN4I_HDMI_ADMA_CTRL_FIFO_CLEAR		BIT(15)
++#define SUN4I_HDMI_ADMA_CTRL_UNDERRUN_ZERO	BIT(0)
++
++#define SUN4I_HDMI_AUD_FMT_REG		0x048
++#define SUN4I_HDMI_AUD_FMT_LAYOUT_0		(0 << 3)
++#define SUN4I_HDMI_AUD_FMT_CH(n)		(((n) - 1) & 7)
++
++#define SUN4I_HDMI_AUD_PCM_CTRL_REG	0x04c
++#define SUN4I_HDMI_AUD_CTS_REG		0x050
++#define SUN4I_HDMI_AUD_N_REG		0x054
++#define SUN4I_HDMI_AUD_CH_STATUS0_REG	0x058
++#define SUN4I_HDMI_AUD_CH_STATUS1_REG	0x05c
++
+ #define SUN4I_HDMI_AVI_INFOFRAME_REG(n)	(0x080 + (n))
++#define SUN4I_HDMI_AUD_INFOFRAME_REG(n)	(0x0a0 + (n))
+ 
+ #define SUN4I_HDMI_PAD_CTRL0_REG	0x200
+ #define SUN4I_HDMI_PAD_CTRL0_BIASEN		BIT(31)
+@@ -101,6 +131,8 @@
+ #define SUN4I_HDMI_PKT_CTRL_REG(n)	(0x2f0 + (4 * (n)))
+ #define SUN4I_HDMI_PKT_CTRL_TYPE(n, t)		((t) << (((n) % 4) * 4))
+ 
++#define SUN4I_HDMI_AUD_TX_FIFO_REG	0x400
++
+ #define SUN4I_HDMI_UNKNOWN_REG		0x300
+ #define SUN4I_HDMI_UNKNOWN_INPUT_SYNC		BIT(27)
+ 
+@@ -190,6 +222,8 @@
+ 
+ enum sun4i_hdmi_pkt_type {
+ 	SUN4I_HDMI_PKT_AVI = 2,
++	SUN4I_HDMI_PKT_AUDIO_INFOFRAME = 3,
++	SUN4I_HDMI_PKT_AUDIO_RELATED = 4,
+ 	SUN4I_HDMI_PKT_END = 15,
+ };
+ 
+@@ -243,6 +277,14 @@ struct sun4i_hdmi_variant {
+ };
+ 
+ struct sun4i_hdmi {
++#ifdef CONFIG_DRM_SUN4I_HDMI_AUDIO
++	/*
++	 * Registering the sound card overwrites the device drvdata with
++	 * the card pointer, so the card has to be the first member for
++	 * both to point at this structure.
++	 */
++	struct snd_soc_card	audio_card;
++#endif
+ 	struct drm_connector	connector;
+ 	struct drm_encoder	encoder;
+ 	struct device		*dev;
+@@ -288,8 +330,37 @@ struct sun4i_hdmi {
+ 	struct cec_adapter	*cec_adap;
+ 
+ 	const struct sun4i_hdmi_variant	*variant;
++
++	/* HDMI audio */
++	struct mutex		audio_lock;
++	bool			audio_streaming;
++#ifdef CONFIG_DRM_SUN4I_HDMI_AUDIO
++	struct snd_dmaengine_dai_dma_data audio_dma_data;
++	struct snd_soc_dai_link	audio_link;
++	struct snd_soc_dai_link_component audio_cpu;
++	struct snd_soc_dai_link_component audio_codec;
++	struct snd_soc_dai_link_component audio_platform;
++#endif
+ };
+ 
++void sun4i_hdmi_update_packets(struct sun4i_hdmi *hdmi);
++
++#ifdef CONFIG_DRM_SUN4I_HDMI_AUDIO
++int sun4i_hdmi_audio_create(struct sun4i_hdmi *hdmi, phys_addr_t base);
++void sun4i_hdmi_audio_plugged(struct sun4i_hdmi *hdmi, bool plugged);
++#else
++static inline int sun4i_hdmi_audio_create(struct sun4i_hdmi *hdmi,
++					  phys_addr_t base)
++{
++	return 0;
++}
++
++static inline void sun4i_hdmi_audio_plugged(struct sun4i_hdmi *hdmi,
++					    bool plugged)
++{
++}
++#endif
++
+ int sun4i_ddc_create(struct sun4i_hdmi *hdmi, struct clk *clk);
+ int sun4i_tmds_create(struct sun4i_hdmi *hdmi);
+ int sun4i_hdmi_i2c_create(struct device *dev, struct sun4i_hdmi *hdmi);
+diff --git a/drivers/gpu/drm/sun4i/sun4i_hdmi_audio.c b/drivers/gpu/drm/sun4i/sun4i_hdmi_audio.c
+new file mode 100644
+index 000000000..847057d2b
+--- /dev/null
++++ b/drivers/gpu/drm/sun4i/sun4i_hdmi_audio.c
+@@ -0,0 +1,224 @@
++// SPDX-License-Identifier: GPL-2.0-or-later
++/*
++ * Allwinner A10/A31 HDMI audio
++ *
++ * The HDMI block takes 32-bit PCM sub-frames through a FIFO port that is
++ * fed by a dedicated DMA request line. The ASoC pieces (CPU DAI, DMA PCM
++ * and a sound card tying them to the hdmi-codec) live here, the HDMI codec
++ * device itself comes from the DRM HDMI audio helper.
++ */
++
++#include <linux/bitfield.h>
++#include <linux/iopoll.h>
++#include <linux/platform_device.h>
++#include <linux/unaligned.h>
++
++#include <drm/display/drm_hdmi_audio_helper.h>
++#include <drm/display/drm_hdmi_helper.h>
++#include <drm/display/drm_hdmi_state_helper.h>
++#include <drm/drm_atomic.h>
++#include <drm/drm_print.h>
++
++#include <sound/hdmi-codec.h>
++#include <sound/pcm_params.h>
++
++#include "sun4i_hdmi.h"
++
++#define drm_connector_to_sun4i_hdmi(c)		\
++	container_of_const(c, struct sun4i_hdmi, connector)
++
++static int sun4i_hdmi_audio_prepare(struct drm_connector *connector,
++				    struct hdmi_codec_daifmt *fmt,
++				    struct hdmi_codec_params *hparms)
++{
++	struct sun4i_hdmi *hdmi = drm_connector_to_sun4i_hdmi(connector);
++	unsigned int sample_rate = hparms->sample_rate;
++	unsigned long long tmds_rate;
++	unsigned int n, cts;
++	u32 val;
++	int ret;
++
++	if (!connector->state || !connector->state->crtc)
++		return -ENODEV;
++
++	tmds_rate = connector->state->hdmi.tmds_char_rate;
++	if (!tmds_rate)
++		return -EINVAL;
++
++	drm_hdmi_acr_get_n_cts(tmds_rate, sample_rate, &n, &cts);
++	if (!cts)
++		cts = DIV_ROUND_CLOSEST_ULL(tmds_rate * n, 128ULL * sample_rate);
++
++	mutex_lock(&hdmi->audio_lock);
++
++	/* Disable, reset, then configure, as the manual requires */
++	writel(0, hdmi->base + SUN4I_HDMI_AUD_CTRL_REG);
++	writel(SUN4I_HDMI_AUD_CTRL_RESET, hdmi->base + SUN4I_HDMI_AUD_CTRL_REG);
++	ret = readl_poll_timeout(hdmi->base + SUN4I_HDMI_AUD_CTRL_REG, val,
++				 !(val & SUN4I_HDMI_AUD_CTRL_RESET), 10, 10000);
++	if (ret) {
++		dev_err(hdmi->dev, "Audio reset timed out\n");
++		goto out;
++	}
++
++	/* The FIFO clear bit is a level, not a pulse: set it, then drop it */
++	writel(SUN4I_HDMI_ADMA_CTRL_FIFO_CLEAR,
++	       hdmi->base + SUN4I_HDMI_ADMA_CTRL_REG);
++
++	val = SUN4I_HDMI_ADMA_CTRL_NORMAL_DMA | SUN4I_HDMI_ADMA_CTRL_REQ_HALF;
++	if (hparms->sample_width == 16)
++		/* Two 16-bit samples per 32-bit DMA word */
++		val |= SUN4I_HDMI_ADMA_CTRL_WORD_16;
++	else
++		val |= SUN4I_HDMI_ADMA_CTRL_WORD_24 |
++		       SUN4I_HDMI_ADMA_CTRL_ONE_SAMPLE;
++	writel(val, hdmi->base + SUN4I_HDMI_ADMA_CTRL_REG);
++
++	writel(SUN4I_HDMI_AUD_FMT_LAYOUT_0 |
++	       SUN4I_HDMI_AUD_FMT_CH(hparms->channels),
++	       hdmi->base + SUN4I_HDMI_AUD_FMT_REG);
++
++	writel(n, hdmi->base + SUN4I_HDMI_AUD_N_REG);
++	writel(cts, hdmi->base + SUN4I_HDMI_AUD_CTS_REG);
++
++	/* The channel status registers follow the IEC 60958 byte layout */
++	writel(get_unaligned_le32(&hparms->iec.status[0]),
++	       hdmi->base + SUN4I_HDMI_AUD_CH_STATUS0_REG);
++	writel(hparms->iec.status[4],
++	       hdmi->base + SUN4I_HDMI_AUD_CH_STATUS1_REG);
++
++	writel(SUN4I_HDMI_AUD_CTRL_ENABLE, hdmi->base + SUN4I_HDMI_AUD_CTRL_REG);
++
++	hdmi->audio_streaming = true;
++	sun4i_hdmi_update_packets(hdmi);
++
++	ret = drm_atomic_helper_connector_hdmi_update_audio_infoframe(connector,
++								      &hparms->cea);
++out:
++	mutex_unlock(&hdmi->audio_lock);
++
++	return ret;
++}
++
++static void sun4i_hdmi_audio_shutdown(struct drm_connector *connector)
++{
++	struct sun4i_hdmi *hdmi = drm_connector_to_sun4i_hdmi(connector);
++
++	mutex_lock(&hdmi->audio_lock);
++	writel(0, hdmi->base + SUN4I_HDMI_AUD_CTRL_REG);
++	hdmi->audio_streaming = false;
++	sun4i_hdmi_update_packets(hdmi);
++	mutex_unlock(&hdmi->audio_lock);
++}
++
++static const struct drm_connector_hdmi_audio_funcs sun4i_hdmi_audio_funcs = {
++	.prepare	= sun4i_hdmi_audio_prepare,
++	.shutdown	= sun4i_hdmi_audio_shutdown,
++};
++
++static int sun4i_hdmi_audio_cpu_dai_probe(struct snd_soc_dai *dai)
++{
++	struct sun4i_hdmi *hdmi = snd_soc_card_get_drvdata(dai->component->card);
++
++	snd_soc_dai_init_dma_data(dai, &hdmi->audio_dma_data, NULL);
++
++	return 0;
++}
++
++static const struct snd_soc_dai_ops sun4i_hdmi_audio_dai_ops = {
++	.probe	= sun4i_hdmi_audio_cpu_dai_probe,
++};
++
++static const struct snd_soc_component_driver sun4i_hdmi_audio_component = {
++	.name			= "sun4i-hdmi-cpu-dai-component",
++	.legacy_dai_naming	= 1,
++};
++
++static struct snd_soc_dai_driver sun4i_hdmi_audio_dai = {
++	.name = "sun4i-hdmi-cpu-dai",
++	.ops = &sun4i_hdmi_audio_dai_ops,
++	.playback = {
++		.stream_name	= "Playback",
++		.channels_min	= 2,
++		.channels_max	= 2,
++		/*
++		 * The FIFO drains too slowly above 48 kHz (192 kHz takes
++		 * about four times as long as it should), so only the
++		 * rates verified to be paced correctly are offered.
++		 */
++		.rates		= SNDRV_PCM_RATE_32000 | SNDRV_PCM_RATE_44100 |
++				  SNDRV_PCM_RATE_48000,
++		.formats	= SNDRV_PCM_FMTBIT_S16_LE | SNDRV_PCM_FMTBIT_S24_LE,
++	},
++};
++
++static const struct snd_dmaengine_pcm_config sun4i_hdmi_pcm_config = {
++	.chan_names[SNDRV_PCM_STREAM_PLAYBACK] = "audio-tx",
++	.prepare_slave_config = snd_dmaengine_pcm_prepare_slave_config,
++};
++
++void sun4i_hdmi_audio_plugged(struct sun4i_hdmi *hdmi, bool plugged)
++{
++	/* The helper's state is only set up once the audio card exists */
++	if (hdmi->audio_card.dev)
++		drm_connector_hdmi_audio_plugged_notify(&hdmi->connector, plugged);
++}
++
++int sun4i_hdmi_audio_create(struct sun4i_hdmi *hdmi, phys_addr_t base)
++{
++	struct snd_soc_dai_link *link = &hdmi->audio_link;
++	struct snd_soc_card *card = &hdmi->audio_card;
++	struct device *dev = hdmi->dev;
++	int ret;
++
++	if (!of_property_present(dev->of_node, "dmas"))
++		return 0;
++
++	hdmi->audio_dma_data.addr = base + SUN4I_HDMI_AUD_TX_FIFO_REG;
++	hdmi->audio_dma_data.addr_width = DMA_SLAVE_BUSWIDTH_4_BYTES;
++	hdmi->audio_dma_data.maxburst = 4;
++
++	ret = devm_snd_dmaengine_pcm_register(dev, &sun4i_hdmi_pcm_config, 0);
++	if (ret)
++		return dev_err_probe(dev, ret, "Couldn't register PCM\n");
++
++	ret = devm_snd_soc_register_component(dev, &sun4i_hdmi_audio_component,
++					      &sun4i_hdmi_audio_dai, 1);
++	if (ret)
++		return dev_err_probe(dev, ret, "Couldn't register the CPU DAI\n");
++
++	ret = drm_connector_hdmi_audio_init(&hdmi->connector, dev,
++					    &sun4i_hdmi_audio_funcs, 2, 0,
++					    false, -1);
++	if (ret)
++		return ret;
++
++	link->cpus		= &hdmi->audio_cpu;
++	link->codecs		= &hdmi->audio_codec;
++	link->platforms		= &hdmi->audio_platform;
++	link->num_cpus		= 1;
++	link->num_codecs	= 1;
++	link->num_platforms	= 1;
++
++	link->name		= "HDMI";
++	link->stream_name	= "HDMI PCM";
++	link->codecs->dai_name	= "i2s-hifi";
++	link->cpus->dai_name	= dev_name(dev);
++	link->codecs->name	= dev_name(&hdmi->connector.hdmi_audio.codec_pdev->dev);
++	link->platforms->name	= dev_name(dev);
++
++	card->dai_link		= link;
++	card->num_links		= 1;
++	card->name		= "sun4i-hdmi";
++	card->driver_name	= "sun4i-hdmi";
++	card->dev		= dev;
++	card->owner		= THIS_MODULE;
++
++	BUILD_BUG_ON(offsetof(struct sun4i_hdmi, audio_card) != 0);
++	snd_soc_card_set_drvdata(card, hdmi);
++	ret = devm_snd_soc_register_card(dev, card);
++	if (ret)
++		return dev_err_probe(dev, ret, "Couldn't register the sound card\n");
++
++	return 0;
++}
+diff --git a/drivers/gpu/drm/sun4i/sun4i_hdmi_enc.c b/drivers/gpu/drm/sun4i/sun4i_hdmi_enc.c
+index 74c7c3720..4c62d63bb 100644
+--- a/drivers/gpu/drm/sun4i/sun4i_hdmi_enc.c
++++ b/drivers/gpu/drm/sun4i/sun4i_hdmi_enc.c
+@@ -60,6 +60,23 @@ static int sun4i_hdmi_write_avi_infoframe(struct drm_connector *connector,
+ 
+ }
+ 
++static int sun4i_hdmi_clear_audio_infoframe(struct drm_connector *connector)
++{
++	return 0;
++}
++
++static int sun4i_hdmi_write_audio_infoframe(struct drm_connector *connector,
++					    const u8 *buffer, size_t len)
++{
++	struct sun4i_hdmi *hdmi = drm_connector_to_sun4i_hdmi(connector);
++	unsigned int i;
++
++	for (i = 0; i < len; i++)
++		writeb(buffer[i], hdmi->base + SUN4I_HDMI_AUD_INFOFRAME_REG(i));
++
++	return 0;
++}
++
+ static int sun4i_hdmi_clear_hdmi_infoframe(struct drm_connector *connector)
+ {
+ 	drm_warn_once(connector->dev, "HDMI VSI not implemented\n");
+@@ -161,9 +178,9 @@ static void sun4i_hdmi_enable(struct drm_encoder *encoder,
+ 
+ 	drm_atomic_helper_connector_hdmi_update_infoframes(connector, state);
+ 
+-	val |= SUN4I_HDMI_PKT_CTRL_TYPE(0, SUN4I_HDMI_PKT_AVI);
+-	val |= SUN4I_HDMI_PKT_CTRL_TYPE(1, SUN4I_HDMI_PKT_END);
+-	writel(val, hdmi->base + SUN4I_HDMI_PKT_CTRL_REG(0));
++	mutex_lock(&hdmi->audio_lock);
++	sun4i_hdmi_update_packets(hdmi);
++	mutex_unlock(&hdmi->audio_lock);
+ 
+ 	val = SUN4I_HDMI_VID_CTRL_ENABLE;
+ 	if (display->is_hdmi)
+@@ -172,6 +189,26 @@ static void sun4i_hdmi_enable(struct drm_encoder *encoder,
+ 	writel(val, hdmi->base + SUN4I_HDMI_VID_CTRL_REG);
+ }
+ 
++/*
++ * Select the packets the controller sends every frame. The caller holds
++ * audio_lock. The audio infoframe and audio related (clock regeneration
++ * and sample) packets are only sent while a stream is running.
++ */
++void sun4i_hdmi_update_packets(struct sun4i_hdmi *hdmi)
++{
++	u32 val = SUN4I_HDMI_PKT_CTRL_TYPE(0, SUN4I_HDMI_PKT_AVI);
++
++	if (hdmi->audio_streaming) {
++		val |= SUN4I_HDMI_PKT_CTRL_TYPE(1, SUN4I_HDMI_PKT_AUDIO_INFOFRAME);
++		val |= SUN4I_HDMI_PKT_CTRL_TYPE(2, SUN4I_HDMI_PKT_AUDIO_RELATED);
++		val |= SUN4I_HDMI_PKT_CTRL_TYPE(3, SUN4I_HDMI_PKT_END);
++	} else {
++		val |= SUN4I_HDMI_PKT_CTRL_TYPE(1, SUN4I_HDMI_PKT_END);
++	}
++
++	writel(val, hdmi->base + SUN4I_HDMI_PKT_CTRL_REG(0));
++}
++
+ static const struct drm_encoder_helper_funcs sun4i_hdmi_helper_funcs = {
+ 	.atomic_disable	= sun4i_hdmi_disable,
+ 	.atomic_enable	= sun4i_hdmi_enable,
+@@ -211,6 +248,7 @@ static int sun4i_hdmi_get_modes(struct drm_connector *connector)
+ 	drm_edid = drm_edid_read_ddc(connector, hdmi->ddc_i2c ?: hdmi->i2c);
+ 
+ 	drm_edid_connector_update(connector, drm_edid);
++	sun4i_hdmi_audio_plugged(hdmi, !!drm_edid);
+ 	cec_s_phys_addr(hdmi->cec_adap,
+ 			connector->display_info.source_physical_address, false);
+ 
+@@ -259,6 +297,10 @@ static const struct drm_connector_hdmi_funcs sun4i_hdmi_hdmi_connector_funcs = {
+ 		.clear_infoframe	= sun4i_hdmi_clear_hdmi_infoframe,
+ 		.write_infoframe	= sun4i_hdmi_write_hdmi_infoframe,
+ 	},
++	.audio = {
++		.clear_infoframe	= sun4i_hdmi_clear_audio_infoframe,
++		.write_infoframe	= sun4i_hdmi_write_audio_infoframe,
++	},
+ };
+ 
+ static const struct drm_connector_helper_funcs sun4i_hdmi_connector_helper_funcs = {
+@@ -276,6 +318,7 @@ sun4i_hdmi_connector_detect(struct drm_connector *connector, bool force)
+ 	reg = readl(hdmi->base + SUN4I_HDMI_HPD_REG);
+ 	if (!(reg & SUN4I_HDMI_HPD_HIGH)) {
+ 		cec_phys_addr_invalidate(hdmi->cec_adap);
++		sun4i_hdmi_audio_plugged(hdmi, false);
+ 		return connector_status_disconnected;
+ 	}
+ 
+@@ -508,6 +551,7 @@ static int sun4i_hdmi_bind(struct device *dev, struct device *master,
+ 	struct cec_connector_info conn_info;
+ 	struct sun4i_drv *drv = drm->dev_private;
+ 	struct sun4i_hdmi *hdmi;
++	struct resource *res;
+ 	u32 reg;
+ 	int ret;
+ 
+@@ -522,7 +566,9 @@ static int sun4i_hdmi_bind(struct device *dev, struct device *master,
+ 	if (!hdmi->variant)
+ 		return -EINVAL;
+ 
+-	hdmi->base = devm_platform_ioremap_resource(pdev, 0);
++	mutex_init(&hdmi->audio_lock);
++
++	hdmi->base = devm_platform_get_and_ioremap_resource(pdev, 0, &res);
+ 	if (IS_ERR(hdmi->base)) {
+ 		dev_err(dev, "Couldn't map the HDMI encoder registers\n");
+ 		return PTR_ERR(hdmi->base);
+@@ -668,6 +714,10 @@ static int sun4i_hdmi_bind(struct device *dev, struct device *master,
+ 			"Couldn't initialise the HDMI connector\n");
+ 		goto err_cleanup_connector;
+ 	}
++	ret = sun4i_hdmi_audio_create(hdmi, res->start);
++	if (ret)
++		goto err_cleanup_connector;
++
+ 	cec_fill_conn_info_from_drm(&conn_info, &hdmi->connector);
+ 	cec_s_conn_info(hdmi->cec_adap, &conn_info);
+ 
+-- 
+2.56.0
+
