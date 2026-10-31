@@ -83,7 +83,7 @@ $CC $I -I"$G" $IDRM -o "$S/bin/kms-gles" "$GPU_DIR/tools/kms-gles.c" $LD -lEGL -
 cat > "$S/hybris-run" <<'EOS'
 #!/bin/sh
 # Run a glibc program on the stock Android GPU libraries through libhybris (start the stock services first:
-# /opt/pvr-stock/stock-run true). GBM programs (weston, kms-gles) need HYBRIS_EGLPLATFORM=gbm.
+# /opt/pvr-stock/stock-run start). GBM programs (weston, kms-gles) need HYBRIS_EGLPLATFORM=gbm.
 # hybris-bionic-init must be the first preload: it reserves the Android TLS slots.
 P="/opt/hybris/lib/libhybris-bionic-init.so /opt/hybris/lib/libgbm.so.1"
 # the TI stack may already preload the same shim for every glibc program

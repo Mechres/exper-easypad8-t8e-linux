@@ -24,7 +24,8 @@ Background: Finding 62 in [`docs/FINDINGS.md`](../../docs/FINDINGS.md).
 | Not done | a real display-class driver (`dcnohw` is a placeholder), the stock `gralloc` "fb0" device (it uses Allwinner's 3.x `/dev/disp` ioctls), clock-framework power code, suspend, power measurement |
 
 Route A and the TI stack both use a module called `pvrsrvkm`, so only one runs at a time. `stock-run` swaps the TI
-stack out and `stock-run restore` brings it back.
+stack out and `stock-run restore` brings it back. Installed with `--boot`, route A is the boot default: the
+`pvr-stock` service initialises the GPU and `weston-stock` starts weston on tty2 (about 12 s into boot).
 
 ## How it fits together
 
@@ -97,8 +98,12 @@ NDK_DIR=/path/to/android-ndk-r25c \
 gpu/route-a/scripts/40-build-libhybris.sh            # libhybris, gbm-hybris, glibc test programs
 gpu/scripts/40-fetch-weston.sh                       # optional: Debian weston 10
 STOCK_SYSTEM=/path/to/t8e-system \
-  gpu/route-a/scripts/30-install-tablet.sh [--weston] # stock files + modules + tools to the tablet
+  gpu/route-a/scripts/30-install-tablet.sh [--weston] [--boot]   # stock files + modules + tools to the tablet
 ```
+
+`--boot` enables the `pvr-stock` service (and `weston-stock` with `--weston`) instead of the TI stack's `pvr`/`weston`
+and keeps udev from loading the TI module at boot. To go back to the TI stack: `rc-update del pvr-stock; rc-update del
+weston-stock; rm /etc/modprobe.d/pvrsrvkm-route-a.conf; rc-update add pvr`, then reboot.
 
 Step 40 also needs `autoconf`, `automake`, `libtool` and `wayland-scanner` on the build machine.
 
@@ -117,7 +122,7 @@ the property area and `stock-run` go to `/opt/pvr-stock`.
 
 `stock-run` prints the program's exit code and the end of the Android log (`/dev/log/main`, a plain file here).
 
-Linux programs (after `/opt/pvr-stock/stock-run true` has started the stock services):
+Linux programs (after `/opt/pvr-stock/stock-run start` has started the stock services):
 
 ```sh
 /opt/hybris/hybris-run /opt/hybris/bin/hybris-gles-probe            # offscreen
