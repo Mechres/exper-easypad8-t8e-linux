@@ -1,0 +1,4610 @@
+From 560e855a66427086f1618f52444a100349315259 Mon Sep 17 00:00:00 2001
+From: Mechres <164776284+Mechres@users.noreply.github.com>
+Date: Sat, 31 Oct 2026 06:44:26 +0300
+Subject: [PATCH 3/4] Add sunxi (Allwinner A31/A31s) system layer and build
+ target
+
+Power-up replayed from the stock driver, no OCP wrapper, rev 1.1.5/1.1.6
+core-rev exception (and fix the exception loop bound).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ eurasiacon/build/linux2/sunxi_linux/Makefile |  119 ++
+ services4/srvkm/devices/sgx/sgxinit.c        |    7 +-
+ services4/srvkm/env/linux/module.c           |    1 +
+ services4/srvkm/env/linux/pvr_drm.c          |    1 +
+ services4/system/sunxi/oemfuncs.h            |   80 ++
+ services4/system/sunxi/sgxfreq.c             |  685 ++++++++++
+ services4/system/sunxi/sgxfreq.h             |   97 ++
+ services4/system/sunxi/sgxfreq_activeidle.c  |  181 +++
+ services4/system/sunxi/sgxfreq_cool.c        |   99 ++
+ services4/system/sunxi/sgxfreq_on3demand.c   |  270 ++++
+ services4/system/sunxi/sgxfreq_onoff.c       |  180 +++
+ services4/system/sunxi/sgxfreq_userspace.c   |  124 ++
+ services4/system/sunxi/sysconfig.c           | 1271 ++++++++++++++++++
+ services4/system/sunxi/sysconfig.h           |  117 ++
+ services4/system/sunxi/sysinfo.h             |   64 +
+ services4/system/sunxi/syslocal.h            |  252 ++++
+ services4/system/sunxi/sysutils.c            |   63 +
+ services4/system/sunxi/sysutils_linux.c      |  826 ++++++++++++
+ 18 files changed, 4435 insertions(+), 2 deletions(-)
+ create mode 100644 eurasiacon/build/linux2/sunxi_linux/Makefile
+ create mode 100644 services4/system/sunxi/oemfuncs.h
+ create mode 100644 services4/system/sunxi/sgxfreq.c
+ create mode 100644 services4/system/sunxi/sgxfreq.h
+ create mode 100644 services4/system/sunxi/sgxfreq_activeidle.c
+ create mode 100644 services4/system/sunxi/sgxfreq_cool.c
+ create mode 100644 services4/system/sunxi/sgxfreq_on3demand.c
+ create mode 100644 services4/system/sunxi/sgxfreq_onoff.c
+ create mode 100644 services4/system/sunxi/sgxfreq_userspace.c
+ create mode 100644 services4/system/sunxi/sysconfig.c
+ create mode 100644 services4/system/sunxi/sysconfig.h
+ create mode 100644 services4/system/sunxi/sysinfo.h
+ create mode 100644 services4/system/sunxi/syslocal.h
+ create mode 100644 services4/system/sunxi/sysutils.c
+ create mode 100644 services4/system/sunxi/sysutils_linux.c
+
+diff --git a/eurasiacon/build/linux2/sunxi_linux/Makefile b/eurasiacon/build/linux2/sunxi_linux/Makefile
+new file mode 100644
+index 0000000..812b4d6
+--- /dev/null
++++ b/eurasiacon/build/linux2/sunxi_linux/Makefile
+@@ -0,0 +1,119 @@
++########################################################################### ###
++#@Title         Root makefile for TI Linux.  Builds everything else.
++#@Copyright     Copyright (c) Imagination Technologies Ltd. All Rights Reserved
++#@License       Dual MIT/GPLv2
++# 
++# The contents of this file are subject to the MIT license as set out below.
++# 
++# Permission is hereby granted, free of charge, to any person obtaining a copy
++# of this software and associated documentation files (the "Software"), to deal
++# in the Software without restriction, including without limitation the rights
++# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
++# copies of the Software, and to permit persons to whom the Software is
++# furnished to do so, subject to the following conditions:
++# 
++# The above copyright notice and this permission notice shall be included in
++# all copies or substantial portions of the Software.
++# 
++# Alternatively, the contents of this file may be used under the terms of
++# the GNU General Public License Version 2 ("GPL") in which case the provisions
++# of GPL are applicable instead of those above.
++# 
++# If you wish to allow use of your version of this file only under the terms of
++# GPL, and not to allow others to use your version of this file under the terms
++# of the MIT license, indicate your decision by deleting the provisions above
++# and replace them with the notice and other provisions required by GPL as set
++# out in the file called "GPL-COPYING" included in this distribution. If you do
++# not delete the provisions above, a recipient may use your version of this file
++# under the terms of either the MIT license or GPL.
++# 
++# This License is also included in this distribution in the file called
++# "MIT-COPYING".
++# 
++# EXCEPT AS OTHERWISE STATED IN A NEGOTIATED AGREEMENT: (A) THE SOFTWARE IS
++# PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING
++# BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
++# PURPOSE AND NONINFRINGEMENT; AND (B) IN NO EVENT SHALL THE AUTHORS OR
++# COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
++# IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
++# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
++### ###########################################################################
++
++include ../config/window_system.mk
++
++SGXCORE := 544
++SGX_CORE_REV := 116
++SGX_FEATURE_MP := 1
++SGX_FEATURE_SYSTEM_CACHE := 1
++SGX_FEATURE_MP_CORE_COUNT := 2
++
++PVRSRV_NEED_PVR_DPF := 1
++PVRSRV_NEW_PVR_DPF := 1
++#PVRSRV_NEED_PVR_TRACE := 1
++
++# Disable active power management
++SUPPORT_ACTIVE_POWER_MANAGEMENT := 0
++
++# Disable Device Class
++SUPPORT_PVRSRV_DEVICE_CLASS := 0
++
++# Enable SONAME
++DONT_USE_SONAMES := 0
++
++# Disable  GL_IMG_texture_stream extension in GLES1 and GLES2 to remove
++# invalid unit tests
++GLES1_EXTENSION_EGL_IMAGE_EXTERNAL := 1
++GLES2_EXTENSION_EGL_IMAGE_EXTERNAL := 1
++
++# Specify the output directories
++BIN_DESTDIR := /usr/bin
++SHARE_DESTDIR := /usr/bin
++
++# Disable Buffer Class
++PVR_LWS_NOBC := 1
++
++PVR_NO_OMAP_TIMER := 1
++
++PVR_SYSTEM := sunxi
++
++KERNEL_COMPONENTS := srvkm
++
++# Only enable active power management if passive power management is
++# enabled, as indicated by LDM_PLATFORM being set to 1.  On OMAP,
++# the system can suspend in the case where active power management is
++# enabled in the SGX driver, but passive power management isn't. As
++# passive power management isn't enabled, the driver won't see the
++# system suspend/resume events, and so won't take appropriate action.
++LDM_PLATFORM := 1
++SUPPORT_LINUX_USING_WORKQUEUES := 1
++
++# Compiler args for this platform
++ARCH := arm
++SYS_CFLAGS := -march=armv7-a+fp -ftree-vectorize -mfpu=neon -mfloat-abi=hard
++SYS_CXXFLAGS := $(SYS_CFLAGS)
++SYS_LDFLAGS := $(SYS_CFLAGS)
++
++SGX_DYNAMIC_TIMING_INFO := 1
++SYS_CUSTOM_POWERLOCK_WRAP := 1
++
++include ../common/xorg_test.mk
++include ../kernel_version.mk
++
++XORG_EXPLICIT_PVR_SERVICES_LOAD := 1
++SUPPORT_DRI_DRM := 1
++PVR_LDM_DEVICE_TREE := 1
++PVR_DRI_DRM_PLATFORM_DEV := 1
++SUPPORT_DMABUF := 1
++
++PVR_DRM_MODESET_DRIVER_NAME := sun4i-drm
++PVR_DRM_MODESET_MODULE_NAME := dumb
++
++# No display class driver.
++DISPLAY_CONTROLLER_COMPONENT :=
++DISPLAY_CONTROLLER :=
++
++include ../config/core.mk
++include ../common/xorg.mk
++include ../common/dridrm.mk
++include ../common/opencl.mk
++include ../common/omap4.mk
+diff --git a/services4/srvkm/devices/sgx/sgxinit.c b/services4/srvkm/devices/sgx/sgxinit.c
+index a3746bc..d2ac639 100644
+--- a/services4/srvkm/devices/sgx/sgxinit.c
++++ b/services4/srvkm/devices/sgx/sgxinit.c
+@@ -2685,9 +2685,12 @@ PVRSRV_ERROR SGXDevInitCompatCheck(PVRSRV_DEVICE_NODE *psDeviceNode)
+ 	IMG_BOOL	bCheckCoreRev;
+ 	const IMG_UINT32 aui32CoreRevExceptions[] =
+ 	{
+-		0x10100, 0x10101
++		0x10100, 0x10101,
++		/* Allwinner A31/A31s SGX544MP2 is rev 1.1.5; it runs the rev 1.1.6 (DRA7) microkernel */
++		0x10105, 0x10106
+ 	};
+-	const IMG_UINT32	ui32NumCoreExceptions = sizeof(aui32CoreRevExceptions) / (2*sizeof(IMG_UINT32));
++	/* the loop below steps i by 2 over the flat array, so count entries, not pairs */
++	const IMG_UINT32	ui32NumCoreExceptions = sizeof(aui32CoreRevExceptions) / sizeof(IMG_UINT32);
+ 	IMG_UINT	i;
+ #endif
+ 
+diff --git a/services4/srvkm/env/linux/module.c b/services4/srvkm/env/linux/module.c
+index e5d7518..dcada8c 100644
+--- a/services4/srvkm/env/linux/module.c
++++ b/services4/srvkm/env/linux/module.c
+@@ -281,6 +281,7 @@ static struct of_device_id powervr_id_table[] = {
+ 	{	.compatible = "ti,omap3-sgx530-121"	},
+ 	{	.compatible = "ti,omap4-sgx540-120"	},
+ 	{	.compatible = "ti,am5728-gpu"		},
++	{	.compatible = "allwinner,sun6i-a31-gpu"	},
+ 	{	.compatible = "ti,omap3430-gpu"		},
+ 	{	.compatible = "ti,omap3630-gpu"		},
+ 	{	.compatible = "ti,omap4430-gpu"		},
+diff --git a/services4/srvkm/env/linux/pvr_drm.c b/services4/srvkm/env/linux/pvr_drm.c
+index 8d04e0a..71f30d7 100644
+--- a/services4/srvkm/env/linux/pvr_drm.c
++++ b/services4/srvkm/env/linux/pvr_drm.c
+@@ -155,6 +155,7 @@ static struct of_device_id asPlatIdList[] = {
+ 	{	.compatible = "ti,omap3-sgx530-121"	},
+ 	{	.compatible = "ti,omap4-sgx540-120"	},
+ 	{	.compatible = "ti,am5728-gpu"		},
++	{	.compatible = "allwinner,sun6i-a31-gpu"	},
+ 	{	.compatible = "ti,omap3430-gpu"		},
+ 	{	.compatible = "ti,omap3630-gpu"		},
+ 	{	.compatible = "ti,omap4430-gpu"		},
+diff --git a/services4/system/sunxi/oemfuncs.h b/services4/system/sunxi/oemfuncs.h
+new file mode 100644
+index 0000000..0902042
+--- /dev/null
++++ b/services4/system/sunxi/oemfuncs.h
+@@ -0,0 +1,80 @@
++/*************************************************************************/ /*!
++@Title          SGX kernel/client driver interface structures and prototypes
++@Copyright      Copyright (c) Imagination Technologies Ltd. All Rights Reserved
++@License        Dual MIT/GPLv2
++
++The contents of this file are subject to the MIT license as set out below.
++
++Permission is hereby granted, free of charge, to any person obtaining a copy
++of this software and associated documentation files (the "Software"), to deal
++in the Software without restriction, including without limitation the rights
++to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
++copies of the Software, and to permit persons to whom the Software is
++furnished to do so, subject to the following conditions:
++
++The above copyright notice and this permission notice shall be included in
++all copies or substantial portions of the Software.
++
++Alternatively, the contents of this file may be used under the terms of
++the GNU General Public License Version 2 ("GPL") in which case the provisions
++of GPL are applicable instead of those above.
++
++If you wish to allow use of your version of this file only under the terms of
++GPL, and not to allow others to use your version of this file under the terms
++of the MIT license, indicate your decision by deleting the provisions above
++and replace them with the notice and other provisions required by GPL as set
++out in the file called "GPL-COPYING" included in this distribution. If you do
++not delete the provisions above, a recipient may use your version of this file
++under the terms of either the MIT license or GPL.
++
++This License is also included in this distribution in the file called
++"MIT-COPYING".
++
++EXCEPT AS OTHERWISE STATED IN A NEGOTIATED AGREEMENT: (A) THE SOFTWARE IS
++PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING
++BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
++PURPOSE AND NONINFRINGEMENT; AND (B) IN NO EVENT SHALL THE AUTHORS OR
++COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
++IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
++CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
++*/ /**************************************************************************/
++
++#if !defined(__OEMFUNCS_H__)
++#define __OEMFUNCS_H__
++
++#if defined (__cplusplus)
++extern "C" {
++#endif
++
++/* function in/out data structures: */
++typedef IMG_UINT32   (*PFN_SRV_BRIDGEDISPATCH)( IMG_UINT32  Ioctl,
++												IMG_BYTE   *pInBuf,
++												IMG_UINT32  InBufLen, 
++											    IMG_BYTE   *pOutBuf,
++												IMG_UINT32  OutBufLen,
++												IMG_UINT32 *pdwBytesTransferred);
++/*
++	Function table for kernel 3rd party driver to kernel services
++*/
++typedef struct PVRSRV_DC_OEM_JTABLE_TAG
++{
++	PFN_SRV_BRIDGEDISPATCH			pfnOEMBridgeDispatch;
++	IMG_PVOID						pvDummy1;
++	IMG_PVOID						pvDummy2;
++	IMG_PVOID						pvDummy3;
++
++} PVRSRV_DC_OEM_JTABLE;
++
++#define OEM_GET_EXT_FUNCS			(1<<1)
++
++#if defined(__cplusplus)
++}
++#endif
++
++#endif	/* __OEMFUNCS_H__ */
++
++/*****************************************************************************
++ End of file (oemfuncs.h)
++*****************************************************************************/
++
++
+diff --git a/services4/system/sunxi/sgxfreq.c b/services4/system/sunxi/sgxfreq.c
+new file mode 100644
+index 0000000..44827b4
+--- /dev/null
++++ b/services4/system/sunxi/sgxfreq.c
+@@ -0,0 +1,685 @@
++/*
++ * Copyright (C) 2012 Texas Instruments, Inc
++ *
++ * This program is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 as published by
++ * the Free Software Foundation.
++ *
++ * This program is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
++ * more details.
++ *
++ * You should have received a copy of the GNU General Public License along with
++ * this program.  If not, see <http://www.gnu.org/licenses/>.
++ */
++
++#include <linux/pm_opp.h>
++#include <linux/of.h>
++
++#include <linux/pm_voltage_domain.h>
++
++#include "sgxfreq.h"
++
++static struct sgxfreq_data {
++	int freq_cnt;
++	unsigned long *freq_list;
++	unsigned long freq;
++	unsigned long freq_request;
++	unsigned long freq_limit;
++	unsigned long total_idle_time;
++	unsigned long total_active_time;
++	struct mutex freq_mutex;
++	struct list_head gov_list;
++	struct sgxfreq_governor *gov;
++	struct mutex gov_mutex;
++	struct sgxfreq_sgx_data sgx_data;
++	struct device *dev;
++	struct clk *core_clk;
++	struct clk *gpu_clk;
++	struct clk *per_clk;
++	struct clk *gpu_core_clk;
++	struct clk *gpu_hyd_clk;
++	struct notifier_block *clk_nb;
++} sfd;
++
++/* Governor init/deinit functions */
++int onoff_init(void);
++int onoff_deinit(void);
++int activeidle_init(void);
++int activeidle_deinit(void);
++int on3demand_init(void);
++int on3demand_deinit(void);
++int userspace_init(void);
++int userspace_deinit(void);
++
++
++typedef int sgxfreq_gov_init_t(void);
++sgxfreq_gov_init_t *sgxfreq_gov_init[] = {
++	onoff_init,
++	activeidle_init,
++	on3demand_init,
++	userspace_init,
++	NULL,
++};
++
++typedef int sgxfreq_gov_deinit_t(void);
++sgxfreq_gov_deinit_t *sgxfreq_gov_deinit[] = {
++	onoff_deinit,
++	activeidle_deinit,
++	on3demand_deinit,
++	userspace_deinit,
++	NULL,
++};
++
++#define SGXFREQ_DEFAULT_GOV_NAME "on3demand"
++static unsigned long _idle_curr_time;
++static unsigned long _idle_prev_time;
++static unsigned long _active_curr_time;
++static unsigned long _active_prev_time;
++
++#if (defined(CONFIG_THERMAL) || defined(CONFIG_THERMAL_FRAMEWORK))
++int cool_init(void);
++void cool_deinit(void);
++#endif
++
++/*********************** begin sysfs interface ***********************/
++
++struct kobject *sgxfreq_kobj;
++
++static ssize_t show_frequency_list(struct device *dev,
++				   struct device_attribute *attr,
++				   char *buf)
++{
++	int i;
++	ssize_t count = 0;
++
++	for (i = 0; i < sfd.freq_cnt; i++)
++		count += sprintf(&buf[count], "%lu ", sfd.freq_list[i]);
++	count += sprintf(&buf[count], "\n");
++
++	return count;
++}
++
++static ssize_t show_frequency_request(struct device *dev,
++				      struct device_attribute *attr,
++				      char *buf)
++{
++	return sprintf(buf, "%lu\n", sfd.freq_request);
++}
++
++static ssize_t show_frequency_limit(struct device *dev,
++				    struct device_attribute *attr,
++				    char *buf)
++{
++	return sprintf(buf, "%lu\n", sfd.freq_limit);
++}
++
++static ssize_t show_frequency(struct device *dev,
++			      struct device_attribute *attr,
++			      char *buf)
++{
++	return sprintf(buf, "%lu\n", sfd.freq);
++}
++
++static ssize_t show_stat(struct device *dev,
++			      struct device_attribute *attr,
++			      char *buf)
++{
++	return sprintf(buf, "gpu %lu %lu\n",
++		sfd.total_active_time, sfd.total_idle_time);
++}
++
++static ssize_t show_governor_list(struct device *dev,
++				  struct device_attribute *attr,
++				  char *buf)
++{
++	ssize_t i = 0;
++	struct sgxfreq_governor *t;
++
++	list_for_each_entry(t, &sfd.gov_list, governor_list) {
++		if (i >= (ssize_t) ((PAGE_SIZE / sizeof(char))
++		    - (SGXFREQ_NAME_LEN + 2)))
++			goto out;
++		i += scnprintf(&buf[i], SGXFREQ_NAME_LEN, "%s ", t->name);
++	}
++out:
++	i += sprintf(&buf[i], "\n");
++	return i;
++}
++
++static ssize_t show_governor(struct device *dev,
++			     struct device_attribute *attr, char *buf)
++{
++	if (sfd.gov)
++		return scnprintf(buf, SGXFREQ_NAME_LEN, "%s\n", sfd.gov->name);
++
++	return sprintf(buf, "\n");
++}
++
++static ssize_t store_governor(struct device *dev,
++			      struct device_attribute *attr, const char *buf,
++			      size_t count)
++{
++	int ret;
++	char name[16];
++
++	ret = sscanf(buf, "%15s", name);
++	if (ret != 1)
++		return -EINVAL;
++
++	ret = sgxfreq_set_governor(name);
++	if (ret)
++		return ret;
++	else
++		return count;
++}
++
++static DEVICE_ATTR(frequency_list, 0444, show_frequency_list, NULL);
++static DEVICE_ATTR(frequency_request, 0444, show_frequency_request, NULL);
++static DEVICE_ATTR(frequency_limit, 0444, show_frequency_limit, NULL);
++static DEVICE_ATTR(frequency, 0444, show_frequency, NULL);
++static DEVICE_ATTR(governor_list, 0444, show_governor_list, NULL);
++static DEVICE_ATTR(governor, 0644, show_governor, store_governor);
++static DEVICE_ATTR(stat, 0444, show_stat, NULL);
++
++static const struct attribute *sgxfreq_attributes[] = {
++	&dev_attr_frequency_list.attr,
++	&dev_attr_frequency_request.attr,
++	&dev_attr_frequency_limit.attr,
++	&dev_attr_frequency.attr,
++	&dev_attr_governor_list.attr,
++	&dev_attr_governor.attr,
++	&dev_attr_stat.attr,
++	NULL
++};
++
++/************************ end sysfs interface ************************/
++
++static int __set_freq(void)
++{
++	unsigned long freq;
++	int ret = 0;
++
++	freq = min(sfd.freq_request, sfd.freq_limit);
++	if (freq != sfd.freq) {
++
++		ret = clk_set_rate(sfd.gpu_core_clk, freq);
++		if (ret) {
++			pr_err("sgxfreq: Error(%d) setting gpu core clock rate: %lu\n",
++					ret, freq);
++			goto err2;
++		}
++
++		ret = clk_set_rate(sfd.gpu_hyd_clk, freq);
++		if (ret) {
++			pr_err("sgxfreq: Error(%d) setting gpu hyd clock rate: %lu\n",
++					ret, freq);
++			goto err3;
++		}
++
++		sfd.freq = freq;
++
++		goto noerr;
++
++		ret |= clk_set_rate(sfd.gpu_hyd_clk, sfd.freq);
++
++err3:
++		ret |= clk_set_rate(sfd.gpu_core_clk, sfd.freq);
++err2:
++noerr:
++		return ret;
++	}
++	return ret;
++}
++
++static struct sgxfreq_governor *__find_governor(const char *name)
++{
++        struct sgxfreq_governor *t;
++
++        list_for_each_entry(t, &sfd.gov_list, governor_list)
++                if (!strncasecmp(name, t->name, SGXFREQ_NAME_LEN))
++                        return t;
++
++        return NULL;
++}
++
++static void __update_timing_info(bool active)
++{
++	struct timeval tv;
++	do_gettimeofday(&tv);
++	if(active)
++	{
++		if(sfd.sgx_data.active == true) {
++			_active_curr_time = __tv2msec(tv);
++			sfd.total_active_time += __delta32(
++					_active_curr_time, _active_prev_time);
++			SGXFREQ_TRACE("A->A TA:= %lums \tdA: %lums \tTI: %lums \tdI: %lums\n",
++					sfd.total_active_time,
++					__delta32(_active_curr_time, _active_prev_time),
++					sfd.total_active_time,
++					(unsigned long)0);
++			_active_prev_time = _active_curr_time;
++		} else {
++			_idle_curr_time = __tv2msec(tv);
++			_active_prev_time = _idle_curr_time;
++			sfd.total_idle_time +=
++					__delta32(_idle_curr_time, _idle_prev_time);
++			SGXFREQ_TRACE("I->A TA:= %lums \tdA: %lums \tTI: %lums \tdI: %lums\n",
++					sfd.total_active_time,
++					(unsigned long)0,
++					sfd.total_idle_time,
++					__delta32(_idle_curr_time, _idle_prev_time));
++		}
++	} else {
++		if(sfd.sgx_data.active == true)
++		{
++			_idle_prev_time = _active_curr_time = __tv2msec(tv);
++			sfd.total_active_time +=
++					__delta32(_active_curr_time, _active_prev_time);
++			SGXFREQ_TRACE("A->I TA:= %lums \tdA: %lums \tTI: %lums \tdI: %lums\n",
++					sfd.total_active_time,
++					__delta32(_active_curr_time, _active_prev_time),
++					sfd.total_active_time,
++					(unsigned long)0);
++		}
++		else
++		{
++			_idle_curr_time = __tv2msec(tv);
++			sfd.total_idle_time += __delta32(
++					_idle_curr_time, _idle_prev_time);
++			SGXFREQ_TRACE("I->I TA:= %lums \tdA: %lums \tTI: %lums \tdI: %lums\n",
++					sfd.total_active_time,
++					(unsigned long)0,
++					sfd.total_idle_time,
++					__delta32(_idle_curr_time, _idle_prev_time));
++			_idle_prev_time = _idle_curr_time;
++		}
++	}
++}
++
++int sgxfreq_init(struct device *dev)
++{
++	int i, ret;
++	unsigned long freq;
++	struct dev_pm_opp *opp;
++	struct device_node *np;
++	unsigned int voltage_latency;
++	struct timeval tv;
++
++	sfd.dev = dev;
++	if (!sfd.dev)
++		return -EINVAL;
++
++	rcu_read_lock();
++
++        ret = of_init_opp_table(dev);
++        if (ret) {
++                pr_err("sgxfreq: failed to init OPP table: %d\n", ret);
++		return -EINVAL;
++        }
++	sfd.freq_cnt = dev_pm_opp_get_opp_count(dev);
++	if (sfd.freq_cnt < 1) {
++		pr_err("sgxfreq: failed to get operating frequencies\n");
++		rcu_read_unlock();
++		return -ENODEV;
++	}
++
++	np = of_node_get(dev->of_node);
++        sfd.clk_nb = of_pm_voltdm_notifier_register(dev, np, sfd.gpu_core_clk, "gpu",
++                                                &voltage_latency);
++
++        if (IS_ERR(sfd.clk_nb)) {
++                ret = PTR_ERR(sfd.clk_nb);
++                /* defer probe if regulator is not yet registered */
++                if (ret == -EPROBE_DEFER) {
++                        dev_err(dev,
++                                "gpu clock notifier not ready, retry\n");
++                } else {
++                        dev_err(dev,
++                                "Failed to register gpu clock notifier: %d\n",
++                                ret);
++                }
++		return ret;
++        }
++
++	sfd.freq_list = kmalloc(sfd.freq_cnt * sizeof(unsigned long), GFP_ATOMIC);
++        if (!sfd.freq_list) {
++		rcu_read_unlock();
++		return -ENOMEM;
++	}
++
++	freq = 0;
++	for (i = 0; i < sfd.freq_cnt; i++) {
++		/* 3.14 and later kernels */
++		opp = dev_pm_opp_find_freq_ceil(dev, &freq);
++		if (IS_ERR_OR_NULL(opp)) {
++			rcu_read_unlock();
++			kfree(sfd.freq_list);
++			return -ENODEV;
++		}
++		sfd.freq_list[i] = freq;
++		freq++;
++	}
++	rcu_read_unlock();
++
++	sfd.core_clk = devm_clk_get(dev, "dpll_core_h14x2_ck");
++	if (IS_ERR(sfd.core_clk)) {
++		ret = PTR_ERR(sfd.core_clk);
++		pr_err("sgxfreq: failed to get core clock: %d\n", ret);
++		return ret;
++	}
++
++	sfd.gpu_clk = devm_clk_get(dev, "dpll_gpu_m2_ck");
++	if (IS_ERR(sfd.gpu_clk)) {
++		ret = PTR_ERR(sfd.gpu_clk);
++		pr_err("sgxfreq: failed to get gpu clock: %d\n", ret);
++		return ret;
++	}
++
++	sfd.per_clk = devm_clk_get(dev, "dpll_per_h14x2_ck");
++	if (IS_ERR(sfd.per_clk)) {
++		ret = PTR_ERR(sfd.per_clk);
++		pr_err("sgxfreq: failed to get per clock: %d\n", ret);
++		return ret;
++	}
++
++	sfd.gpu_core_clk = devm_clk_get(dev, "gpu_core_gclk_mux");
++	if (IS_ERR(sfd.gpu_core_clk)) {
++		ret = PTR_ERR(sfd.gpu_core_clk);
++		pr_err("sgxfreq: failed to get gpu core clock: %d\n", ret);
++		return ret;
++	}
++
++	sfd.gpu_hyd_clk = devm_clk_get(dev, "gpu_core_gclk_mux");
++	if (IS_ERR(sfd.gpu_hyd_clk)) {
++		ret = PTR_ERR(sfd.gpu_hyd_clk);
++		pr_err("sgxfreq: failed to get gpu hyd clock: %d\n", ret);
++		return ret;
++	}
++
++	ret = clk_set_parent(sfd.gpu_hyd_clk, sfd.core_clk);
++	if (ret != 0) {
++		pr_err("sgxfreq: failed to set gpu_hyd_clk parent: %d\n", ret);
++	}
++
++	ret = clk_set_parent(sfd.gpu_core_clk, sfd.core_clk);
++	if (ret != 0) {
++		pr_err("sgxfreq: failed to set gpu_core_clk parent: %d\n", ret);
++	}
++
++	mutex_init(&sfd.freq_mutex);
++	sfd.freq_limit = sfd.freq_list[sfd.freq_cnt - 1];
++	sgxfreq_set_freq_request(sfd.freq_list[sfd.freq_cnt - 1]);
++	sfd.sgx_data.clk_on = false;
++	sfd.sgx_data.active = false;
++
++	mutex_init(&sfd.gov_mutex);
++	INIT_LIST_HEAD(&sfd.gov_list);
++
++	sgxfreq_kobj = kobject_create_and_add("sgxfreq", &sfd.dev->kobj);
++	ret = sysfs_create_files(sgxfreq_kobj, sgxfreq_attributes);
++	if (ret) {
++		kfree(sfd.freq_list);
++		return ret;
++	}
++
++#if (defined(CONFIG_THERMAL) || defined(CONFIG_THERMAL_FRAMEWORK))
++	cool_init();
++#endif
++
++	for (i = 0; sgxfreq_gov_init[i] != NULL; i++)
++		sgxfreq_gov_init[i]();
++
++	if (sgxfreq_set_governor(SGXFREQ_DEFAULT_GOV_NAME)) {
++		kfree(sfd.freq_list);
++		return -ENODEV;
++	}
++	do_gettimeofday(&tv);
++	_idle_prev_time = _active_curr_time = _idle_curr_time =
++		_active_prev_time = __tv2msec(tv);
++
++	return 0;
++}
++
++int sgxfreq_deinit(void)
++{
++	int i;
++
++	sgxfreq_set_governor(NULL);
++
++	sgxfreq_set_freq_request(sfd.freq_list[0]);
++
++#if (defined(CONFIG_THERMAL) || defined(CONFIG_THERMAL_FRAMEWORK))
++	cool_deinit();
++#endif
++
++	for (i = 0; sgxfreq_gov_deinit[i] != NULL; i++)
++		sgxfreq_gov_deinit[i]();
++
++	sysfs_remove_files(sgxfreq_kobj, sgxfreq_attributes);
++	kobject_put(sgxfreq_kobj);
++
++	kfree(sfd.freq_list);
++
++	return 0;
++}
++
++int sgxfreq_register_governor(struct sgxfreq_governor *governor)
++{
++	if (!governor)
++		return -EINVAL;
++
++	list_add(&governor->governor_list, &sfd.gov_list);
++
++	return 0;
++}
++
++void sgxfreq_unregister_governor(struct sgxfreq_governor *governor)
++{
++	if (!governor)
++		return;
++
++	list_del(&governor->governor_list);
++}
++
++int sgxfreq_set_governor(const char *name)
++{
++	int ret = 0;
++	struct sgxfreq_governor *new_gov = 0;
++
++	if (name) {
++		new_gov = __find_governor(name);
++		if (!new_gov)
++			return -EINVAL;
++	}
++
++	mutex_lock(&sfd.gov_mutex);
++
++	if (sfd.gov && sfd.gov->gov_stop)
++		sfd.gov->gov_stop();
++
++	if (new_gov && new_gov->gov_start)
++		ret = new_gov->gov_start(&sfd.sgx_data);
++
++	if (ret) {
++		if (sfd.gov && sfd.gov->gov_start)
++			sfd.gov->gov_start(&sfd.sgx_data);
++		return -ENODEV;
++	}
++	sfd.gov = new_gov;
++
++	mutex_unlock(&sfd.gov_mutex);
++
++	return 0;
++}
++
++int sgxfreq_get_freq_list(unsigned long **pfreq_list)
++{
++	*pfreq_list = sfd.freq_list;
++
++	return sfd.freq_cnt;
++}
++
++unsigned long sgxfreq_get_freq_min(void)
++{
++	return sfd.freq_list[0];
++}
++
++unsigned long sgxfreq_get_freq_max(void)
++{
++	return sfd.freq_list[sfd.freq_cnt - 1];
++}
++
++unsigned long sgxfreq_get_freq_floor(unsigned long freq)
++{
++	int i;
++	unsigned long f = 0;
++
++	for (i = sfd.freq_cnt - 1; i >= 0; i--) {
++		f = sfd.freq_list[i];
++		if (f <= freq)
++			return f;
++	}
++
++	return f;
++}
++
++unsigned long sgxfreq_get_freq_ceil(unsigned long freq)
++{
++	int i;
++	unsigned long f = 0;
++
++	for (i = 0; i < sfd.freq_cnt; i++) {
++		f = sfd.freq_list[i];
++		if (f >= freq)
++			return f;
++	}
++
++	return f;
++}
++
++unsigned long sgxfreq_get_freq(void)
++{
++	return sfd.freq;
++}
++
++unsigned long sgxfreq_get_freq_request(void)
++{
++	return sfd.freq_request;
++}
++
++unsigned long sgxfreq_get_freq_limit(void)
++{
++	return sfd.freq_limit;
++}
++
++unsigned long sgxfreq_set_freq_request(unsigned long freq_request)
++{
++	freq_request = sgxfreq_get_freq_ceil(freq_request);
++
++	mutex_lock(&sfd.freq_mutex);
++
++	sfd.freq_request = freq_request;
++	__set_freq();
++
++	mutex_unlock(&sfd.freq_mutex);
++
++	return freq_request;
++}
++
++unsigned long sgxfreq_set_freq_limit(unsigned long freq_limit)
++{
++	freq_limit = sgxfreq_get_freq_ceil(freq_limit);
++
++	mutex_lock(&sfd.freq_mutex);
++
++	sfd.freq_limit = freq_limit;
++	__set_freq();
++
++	mutex_unlock(&sfd.freq_mutex);
++
++	return freq_limit;
++}
++
++unsigned long sgxfreq_get_total_active_time(void)
++{
++	__update_timing_info(sfd.sgx_data.active);
++	return sfd.total_active_time;
++}
++
++unsigned long sgxfreq_get_total_idle_time(void)
++{
++	__update_timing_info(sfd.sgx_data.active);
++	return sfd.total_idle_time;
++}
++
++/*
++ * sgx_clk_on, sgx_clk_off, sgx_active, and sgx_idle notifications are
++ * serialized by power lock. governor notif calls need sync with governor
++ * setting.
++ */
++void sgxfreq_notif_sgx_clk_on(void)
++{
++	sfd.sgx_data.clk_on = true;
++
++	mutex_lock(&sfd.gov_mutex);
++
++	if (sfd.gov && sfd.gov->sgx_clk_on)
++		sfd.gov->sgx_clk_on();
++
++	mutex_unlock(&sfd.gov_mutex);
++}
++
++void sgxfreq_notif_sgx_clk_off(void)
++{
++	sfd.sgx_data.clk_on = false;
++
++	mutex_lock(&sfd.gov_mutex);
++
++	if (sfd.gov && sfd.gov->sgx_clk_off)
++		sfd.gov->sgx_clk_off();
++
++	mutex_unlock(&sfd.gov_mutex);
++}
++
++
++void sgxfreq_notif_sgx_active(void)
++{
++	__update_timing_info(true);
++
++	sfd.sgx_data.active = true;
++
++	mutex_lock(&sfd.gov_mutex);
++
++	if (sfd.gov && sfd.gov->sgx_active)
++		sfd.gov->sgx_active();
++
++	mutex_unlock(&sfd.gov_mutex);
++
++}
++
++void sgxfreq_notif_sgx_idle(void)
++{
++
++	__update_timing_info(false);
++
++	sfd.sgx_data.active = false;
++
++	mutex_lock(&sfd.gov_mutex);
++
++	if (sfd.gov && sfd.gov->sgx_idle)
++		sfd.gov->sgx_idle();
++
++	mutex_unlock(&sfd.gov_mutex);
++}
++
++void sgxfreq_notif_sgx_frame_done(void)
++{
++	mutex_lock(&sfd.gov_mutex);
++
++	if (sfd.gov && sfd.gov->sgx_frame_done)
++		sfd.gov->sgx_frame_done();
++
++	mutex_unlock(&sfd.gov_mutex);
++}
+diff --git a/services4/system/sunxi/sgxfreq.h b/services4/system/sunxi/sgxfreq.h
+new file mode 100644
+index 0000000..ff6fc88
+--- /dev/null
++++ b/services4/system/sunxi/sgxfreq.h
+@@ -0,0 +1,97 @@
++/*
++ * Copyright (C) 2012 Texas Instruments, Inc
++ *
++ * This program is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 as published by
++ * the Free Software Foundation.
++ *
++ * This program is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
++ * more details.
++ *
++ * You should have received a copy of the GNU General Public License along with
++ * this program.  If not, see <http://www.gnu.org/licenses/>.
++ */
++
++#ifndef SGXFREQ_H
++#define SGXFREQ_H
++
++#include <linux/device.h>
++#include <linux/time.h>
++
++#define SGXFREQ_NAME_LEN 16
++
++//#define SGXFREQ_DEBUG_FTRACE
++#if defined(SGXFREQ_DEBUG_FTRACE)
++#define SGXFREQ_TRACE(...) trace_printk(__VA_ARGS__)
++#else
++#define SGXFREQ_TRACE(...)
++#endif
++
++struct sgxfreq_sgx_data {
++	bool clk_on;
++	bool active;
++};
++
++struct sgxfreq_governor {
++	char name[SGXFREQ_NAME_LEN];
++	int (*gov_start) (struct sgxfreq_sgx_data *data);
++	void (*gov_stop) (void);
++	void (*sgx_clk_on) (void);
++	void (*sgx_clk_off) (void);
++	void (*sgx_active) (void);
++	void (*sgx_idle) (void);
++	void (*sgx_frame_done) (void);
++	struct list_head governor_list;
++};
++
++/* sgxfreq_init must be called before any other api */
++int sgxfreq_init(struct device *dev);
++int sgxfreq_deinit(void);
++
++int sgxfreq_register_governor(struct sgxfreq_governor *governor);
++void sgxfreq_unregister_governor(struct sgxfreq_governor *governor);
++
++int sgxfreq_set_governor(const char *name);
++
++int sgxfreq_get_freq_list(unsigned long **pfreq_list);
++
++unsigned long sgxfreq_get_freq_min(void);
++unsigned long sgxfreq_get_freq_max(void);
++
++unsigned long sgxfreq_get_freq_floor(unsigned long freq);
++unsigned long sgxfreq_get_freq_ceil(unsigned long freq);
++
++unsigned long sgxfreq_get_freq(void);
++unsigned long sgxfreq_get_freq_request(void);
++unsigned long sgxfreq_get_freq_limit(void);
++
++unsigned long sgxfreq_set_freq_request(unsigned long freq_request);
++unsigned long sgxfreq_set_freq_limit(unsigned long freq_limit);
++
++unsigned long sgxfreq_get_total_active_time(void);
++unsigned long sgxfreq_get_total_idle_time(void);
++
++/* Helper functions */
++static inline unsigned long __tv2msec(struct timeval tv)
++{
++	return (tv.tv_sec * 1000) + (tv.tv_usec / 1000);
++}
++
++static inline unsigned long __delta32(unsigned long a, unsigned long b)
++{
++	if (a >= b)
++		return a - b;
++	else
++		return 1 + (0xFFFFFFFF - b) + a;
++}
++
++/* External notifications to sgxfreq */
++void sgxfreq_notif_sgx_clk_on(void);
++void sgxfreq_notif_sgx_clk_off(void);
++void sgxfreq_notif_sgx_active(void);
++void sgxfreq_notif_sgx_idle(void);
++void sgxfreq_notif_sgx_frame_done(void);
++
++#endif
+diff --git a/services4/system/sunxi/sgxfreq_activeidle.c b/services4/system/sunxi/sgxfreq_activeidle.c
+new file mode 100644
+index 0000000..45159d7
+--- /dev/null
++++ b/services4/system/sunxi/sgxfreq_activeidle.c
+@@ -0,0 +1,181 @@
++/*
++ * Copyright (C) 2012 Texas Instruments, Inc
++ *
++ * This program is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 as published by
++ * the Free Software Foundation.
++ *
++ * This program is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
++ * more details.
++ *
++ * You should have received a copy of the GNU General Public License along with
++ * this program.  If not, see <http://www.gnu.org/licenses/>.
++ */
++
++#include <linux/sysfs.h>
++#include "sgxfreq.h"
++
++static int activeidle_start(struct sgxfreq_sgx_data *data);
++static void activeidle_stop(void);
++static void activeidle_sgx_active(void);
++static void activeidle_sgx_idle(void);
++
++static struct activeidle_data {
++	unsigned long freq_active;
++	unsigned long freq_idle;
++	struct mutex mutex;
++	bool sgx_active;
++} aid;
++
++static struct sgxfreq_governor activeidle_gov = {
++	.name =	"activeidle",
++	.gov_start = activeidle_start,
++	.gov_stop = activeidle_stop,
++	.sgx_active = activeidle_sgx_active,
++	.sgx_idle = activeidle_sgx_idle,
++};
++
++/*********************** begin sysfs interface ***********************/
++
++extern struct kobject *sgxfreq_kobj;
++
++static ssize_t show_freq_active(struct device *dev,
++				struct device_attribute *attr,
++				char *buf)
++{
++	return sprintf(buf, "%lu\n", aid.freq_active);
++}
++
++static ssize_t store_freq_active(struct device *dev,
++				 struct device_attribute *attr,
++				 const char *buf, size_t count)
++{
++	int ret;
++	unsigned long freq;
++
++	ret = sscanf(buf, "%lu", &freq);
++	if (ret != 1)
++		return -EINVAL;
++
++	freq = sgxfreq_get_freq_ceil(freq);
++
++	mutex_lock(&aid.mutex);
++
++	aid.freq_active = freq;
++	if (aid.sgx_active)
++		sgxfreq_set_freq_request(aid.freq_active);
++
++	mutex_unlock(&aid.mutex);
++
++	return count;
++}
++
++static ssize_t show_freq_idle(struct device *dev, struct device_attribute *attr,
++			      char *buf)
++{
++	return sprintf(buf, "%lu\n", aid.freq_idle);
++}
++
++static ssize_t store_freq_idle(struct device *dev, struct device_attribute *attr,
++			       const char *buf, size_t count)
++{
++	int ret;
++	unsigned long freq;
++
++	ret = sscanf(buf, "%lu", &freq);
++	if (ret != 1)
++		return -EINVAL;
++
++	freq = sgxfreq_get_freq_floor(freq);
++
++	mutex_lock(&aid.mutex);
++
++	aid.freq_idle = freq;
++	if (!aid.sgx_active)
++		sgxfreq_set_freq_request(aid.freq_idle);
++
++	mutex_unlock(&aid.mutex);
++
++	return count;
++}
++static DEVICE_ATTR(freq_active, 0644, show_freq_active, store_freq_active);
++static DEVICE_ATTR(freq_idle, 0644, show_freq_idle, store_freq_idle);
++
++static struct attribute *activeidle_attributes[] = {
++	&dev_attr_freq_active.attr,
++	&dev_attr_freq_idle.attr,
++	NULL
++};
++
++static struct attribute_group activeidle_attr_group = {
++	.attrs = activeidle_attributes,
++	.name = "activeidle",
++};
++
++/************************ end sysfs interface ************************/
++
++int activeidle_init(void)
++{
++	int ret;
++
++	mutex_init(&aid.mutex);
++
++	ret = sgxfreq_register_governor(&activeidle_gov);
++	if (ret)
++		return ret;
++
++	aid.freq_idle = sgxfreq_get_freq_min();
++	aid.freq_active = sgxfreq_get_freq_max();
++
++	return 0;
++}
++
++int activeidle_deinit(void)
++{
++	return 0;
++}
++
++static int activeidle_start(struct sgxfreq_sgx_data *data)
++{
++	int ret;
++
++	aid.sgx_active = data->active;
++
++	ret = sysfs_create_group(sgxfreq_kobj, &activeidle_attr_group);
++	if (ret)
++		return ret;
++
++	if (aid.sgx_active)
++		sgxfreq_set_freq_request(aid.freq_active);
++	else
++		sgxfreq_set_freq_request(aid.freq_idle);
++
++	return 0;
++}
++
++static void activeidle_stop(void)
++{
++	sysfs_remove_group(sgxfreq_kobj, &activeidle_attr_group);
++}
++
++static void activeidle_sgx_active(void)
++{
++	mutex_lock(&aid.mutex);
++
++	aid.sgx_active = true;
++	sgxfreq_set_freq_request(aid.freq_active);
++
++	mutex_unlock(&aid.mutex);
++}
++
++static void activeidle_sgx_idle(void)
++{
++	mutex_lock(&aid.mutex);
++
++	aid.sgx_active = false;
++	sgxfreq_set_freq_request(aid.freq_idle);
++
++	mutex_unlock(&aid.mutex);
++}
+diff --git a/services4/system/sunxi/sgxfreq_cool.c b/services4/system/sunxi/sgxfreq_cool.c
+new file mode 100644
+index 0000000..9b8ef31
+--- /dev/null
++++ b/services4/system/sunxi/sgxfreq_cool.c
+@@ -0,0 +1,99 @@
++/*
++ * Copyright (C) 2012 Texas Instruments, Inc
++ *
++ * This program is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 as published by
++ * the Free Software Foundation.
++ *
++ * This program is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
++ * more details.
++ *
++ * You should have received a copy of the GNU General Public License along with
++ * this program.  If not, see <http://www.gnu.org/licenses/>.
++ */
++
++#include <linux/thermal.h>
++
++static struct cool_data {
++	int freq_cnt;
++	unsigned long *freq_list;
++	unsigned long state;
++	struct thermal_cooling_device *cdev;
++} cd;
++
++static int sgxfreq_get_max_state(struct thermal_cooling_device *cdev,
++		unsigned long *state)
++{
++	*state = cd.freq_cnt - 1;
++	return 0;
++}
++
++static int sgxfreq_get_cur_state(struct thermal_cooling_device *cdev,
++		unsigned long *state)
++{
++	*state = cd.state;
++	return 0;
++}
++
++static int sgxfreq_set_cur_state(struct thermal_cooling_device *cdev,
++		unsigned long state)
++{
++	int freq_max_index, freq_limit_index;
++
++	freq_max_index = cd.freq_cnt - 1;
++
++	freq_limit_index = freq_max_index - (unsigned int)state;
++
++	if (freq_limit_index < 0)
++		freq_limit_index = 0;
++
++	sgxfreq_set_freq_limit(cd.freq_list[freq_limit_index]);
++
++	cd.state = state;
++	return 0;
++}
++
++
++static const struct thermal_cooling_device_ops sgxfreq_cooling_ops = {
++	.get_max_state = sgxfreq_get_max_state,
++	.get_cur_state = sgxfreq_get_cur_state,
++	.set_cur_state = sgxfreq_set_cur_state,
++};
++
++int cool_init(void)
++{
++	int ret;
++	struct thermal_zone_device *tz;
++
++	cd.freq_cnt = sgxfreq_get_freq_list(&cd.freq_list);
++	if (!cd.freq_cnt || !cd.freq_list)
++		return -EINVAL;
++
++	cd.cdev = thermal_cooling_device_register("gpu", (void *)NULL, &sgxfreq_cooling_ops);
++
++	if(IS_ERR(cd.cdev)) {
++		pr_err("sgxfreq: Error while regeistering cooling device: %ld\n", PTR_ERR(cd.cdev));
++		return -1;
++	}
++
++	tz = thermal_zone_get_zone_by_name("gpu");
++	if(IS_ERR(tz)) {
++		pr_err("sgxfreq: Error while trying to obtain zone device: %ld\n", PTR_ERR(tz));
++		return -1;
++	}
++
++	ret = thermal_zone_bind_cooling_device(tz, 0, cd.cdev, THERMAL_NO_LIMIT, THERMAL_NO_LIMIT, THERMAL_WEIGHT_DEFAULT);
++	if (ret)
++	{
++		pr_err("sgxfreq: Error binding cooling device: %d\n", ret);
++	}
++
++	return 0;
++}
++
++void cool_deinit(void)
++{
++	thermal_cooling_device_unregister(cd.cdev);
++}
+diff --git a/services4/system/sunxi/sgxfreq_on3demand.c b/services4/system/sunxi/sgxfreq_on3demand.c
+new file mode 100644
+index 0000000..70764b1
+--- /dev/null
++++ b/services4/system/sunxi/sgxfreq_on3demand.c
+@@ -0,0 +1,270 @@
++/*
++ * Copyright (C) 2012 Texas Instruments, Inc
++ *
++ * This program is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 as published by
++ * the Free Software Foundation.
++ *
++ * This program is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
++ * more details.
++ *
++ * You should have received a copy of the GNU General Public License along with
++ * this program.  If not, see <http://www.gnu.org/licenses/>.
++ */
++
++#include <linux/sysfs.h>
++#include <linux/vmalloc.h>
++#include <asm/io.h>
++#include "sgxfreq.h"
++
++static int on3demand_start(struct sgxfreq_sgx_data *data);
++static void on3demand_stop(void);
++static void on3demand_predict(void);
++
++
++static struct sgxfreq_governor on3demand_gov = {
++	.name =	"on3demand",
++	.gov_start = on3demand_start,
++	.gov_stop = on3demand_stop,
++	.sgx_frame_done = on3demand_predict
++};
++
++static struct on3demand_data {
++	unsigned int load;
++	unsigned int up_threshold;
++	unsigned int down_threshold;
++	unsigned int history_size;
++	unsigned long prev_total_idle;
++	unsigned long prev_total_active;
++	unsigned int low_load_cnt;
++	struct mutex mutex;
++} odd;
++
++#define ON3DEMAND_DEFAULT_UP_THRESHOLD			80
++#define ON3DEMAND_DEFAULT_DOWN_THRESHOLD		30
++#define ON3DEMAND_DEFAULT_HISTORY_SIZE_THRESHOLD	5
++
++/*FIXME: This should be dynamic and queried from platform */
++#define ON3DEMAND_FRAME_DONE_DEADLINE_MS 16
++
++
++/*********************** begin sysfs interface ***********************/
++
++extern struct kobject *sgxfreq_kobj;
++
++static ssize_t show_down_threshold(struct device *dev,
++	struct device_attribute *attr, char *buf)
++{
++	return sprintf(buf, "%u\n", odd.down_threshold);
++}
++
++static ssize_t store_down_threshold(struct device *dev,
++	struct device_attribute *attr, const char *buf, size_t count)
++{
++	int ret;
++	unsigned int thres;
++
++	ret = sscanf(buf, "%u", &thres);
++	if (ret != 1)
++		return -EINVAL;
++
++	mutex_lock(&odd.mutex);
++
++	if (thres <= 100) {
++		odd.down_threshold = thres;
++		odd.low_load_cnt = 0;
++	} else {
++		return -EINVAL;
++	}
++
++	mutex_unlock(&odd.mutex);
++
++	return count;
++}
++
++static ssize_t show_up_threshold(struct device *dev,
++	struct device_attribute *attr, char *buf)
++{
++	return sprintf(buf, "%u\n", odd.up_threshold);
++}
++
++static ssize_t store_up_threshold(struct device *dev,
++	struct device_attribute *attr, const char *buf, size_t count)
++{
++	int ret;
++	unsigned int thres;
++
++	ret = sscanf(buf, "%u", &thres);
++	if (ret != 1)
++		return -EINVAL;
++
++	mutex_lock(&odd.mutex);
++
++	if (thres <= 100) {
++		odd.up_threshold = thres;
++		odd.low_load_cnt = 0;
++	} else {
++		return -EINVAL;
++	}
++
++	mutex_unlock(&odd.mutex);
++
++	return count;
++}
++
++static ssize_t show_history_size(struct device *dev,
++	struct device_attribute *attr, char *buf)
++{
++	return sprintf(buf, "%u\n", odd.history_size);
++}
++
++static ssize_t store_history_size(struct device *dev,
++	struct device_attribute *attr, const char *buf, size_t count)
++{
++	int ret;
++	unsigned int size;
++
++	ret = sscanf(buf, "%u", &size);
++	if (ret != 1)
++		return -EINVAL;
++
++	mutex_lock(&odd.mutex);
++
++	if (size >= 1) {
++		odd.history_size = size;
++		odd.low_load_cnt = 0;
++	} else {
++		return -EINVAL;
++	}
++
++	mutex_unlock(&odd.mutex);
++
++	return count;
++}
++
++static ssize_t show_load(struct device *dev,
++	struct device_attribute *attr, char *buf)
++{
++	return sprintf(buf, "%u\n", odd.load);
++}
++
++static DEVICE_ATTR(down_threshold, 0644,
++	show_down_threshold, store_down_threshold);
++static DEVICE_ATTR(up_threshold, 0644,
++	show_up_threshold, store_up_threshold);
++static DEVICE_ATTR(history_size, 0644,
++	show_history_size, store_history_size);
++static DEVICE_ATTR(load, 0444,
++	show_load, NULL);
++
++static struct attribute *on3demand_attributes[] = {
++	&dev_attr_down_threshold.attr,
++	&dev_attr_up_threshold.attr,
++	&dev_attr_history_size.attr,
++	&dev_attr_load.attr,
++	NULL
++};
++
++static struct attribute_group on3demand_attr_group = {
++	.attrs = on3demand_attributes,
++	.name = "on3demand",
++};
++/************************ end sysfs interface ************************/
++
++int on3demand_init(void)
++{
++	int ret;
++
++	mutex_init(&odd.mutex);
++
++	ret = sgxfreq_register_governor(&on3demand_gov);
++	if (ret)
++		return ret;
++
++	return 0;
++}
++
++int on3demand_deinit(void)
++{
++	return 0;
++}
++
++static int on3demand_start(struct sgxfreq_sgx_data *data)
++{
++	int ret;
++
++	odd.load = 0;
++	odd.up_threshold = ON3DEMAND_DEFAULT_UP_THRESHOLD;
++	odd.down_threshold = ON3DEMAND_DEFAULT_DOWN_THRESHOLD;
++	odd.history_size = ON3DEMAND_DEFAULT_HISTORY_SIZE_THRESHOLD;
++	odd.prev_total_active = 0;
++	odd.prev_total_idle = 0;
++	odd.low_load_cnt = 0;
++
++	ret = sysfs_create_group(sgxfreq_kobj, &on3demand_attr_group);
++	if (ret)
++		return ret;
++
++	return 0;
++}
++
++static void on3demand_stop(void)
++{
++	sysfs_remove_group(sgxfreq_kobj, &on3demand_attr_group);
++}
++
++static void on3demand_predict(void)
++{
++	static unsigned short first_sample = 1;
++	unsigned long total_active, delta_active;
++	unsigned long total_idle, delta_idle;
++	unsigned long freq;
++
++	if (first_sample == 1) {
++		first_sample = 0;
++		odd.prev_total_active = sgxfreq_get_total_active_time();
++		odd.prev_total_idle = sgxfreq_get_total_idle_time();
++		return;
++	}
++
++	/* Sample new active and idle times */
++	total_active = sgxfreq_get_total_active_time();
++	total_idle = sgxfreq_get_total_idle_time();
++
++	/* Compute load */
++	delta_active = __delta32(total_active, odd.prev_total_active);
++	delta_idle = __delta32(total_idle, odd.prev_total_idle);
++
++	/*
++	 * If SGX was active for longer than frame display time (1/fps),
++	 * scale to highest possible frequency.
++	 */
++	if (delta_active > ON3DEMAND_FRAME_DONE_DEADLINE_MS) {
++		odd.low_load_cnt = 0;
++		sgxfreq_set_freq_request(sgxfreq_get_freq_max());
++	}
++
++	if ((delta_active + delta_idle))
++		odd.load = (100 * delta_active / (delta_active + delta_idle));
++	odd.prev_total_active = total_active;
++	odd.prev_total_idle = total_idle;
++
++	/* Scale GPU frequency on purpose */
++	if (odd.load >= odd.up_threshold) {
++		odd.low_load_cnt = 0;
++		sgxfreq_set_freq_request(sgxfreq_get_freq_max());
++	} else if (odd.load <= odd.down_threshold) {
++		if (odd.low_load_cnt == odd.history_size) {
++			/* Convert load to frequency */
++			freq = (sgxfreq_get_freq() * odd.load) / 100;
++			sgxfreq_set_freq_request(freq);
++			odd.low_load_cnt = 0;
++		} else {
++			odd.low_load_cnt++;
++		}
++	} else {
++		odd.low_load_cnt = 0;
++	}
++}
+diff --git a/services4/system/sunxi/sgxfreq_onoff.c b/services4/system/sunxi/sgxfreq_onoff.c
+new file mode 100644
+index 0000000..39dd3fc
+--- /dev/null
++++ b/services4/system/sunxi/sgxfreq_onoff.c
+@@ -0,0 +1,180 @@
++/*
++ * Copyright (C) 2012 Texas Instruments, Inc
++ *
++ * This program is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 as published by
++ * the Free Software Foundation.
++ *
++ * This program is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
++ * more details.
++ *
++ * You should have received a copy of the GNU General Public License along with
++ * this program.  If not, see <http://www.gnu.org/licenses/>.
++ */
++
++#include <linux/sysfs.h>
++#include "sgxfreq.h"
++
++static int onoff_start(struct sgxfreq_sgx_data *data);
++static void onoff_stop(void);
++static void onoff_sgx_clk_on(void);
++static void onoff_sgx_clk_off(void);
++
++static struct onoff_data {
++	unsigned long freq_off;
++	unsigned long freq_on;
++	struct mutex mutex;
++	bool sgx_clk_on;
++} ood;
++
++static struct sgxfreq_governor onoff_gov = {
++	.name =	"onoff",
++	.gov_start = onoff_start,
++	.gov_stop = onoff_stop,
++	.sgx_clk_on = onoff_sgx_clk_on,
++	.sgx_clk_off = onoff_sgx_clk_off,
++};
++
++/*********************** begin sysfs interface ***********************/
++
++extern struct kobject *sgxfreq_kobj;
++
++static ssize_t show_freq_on(struct device *dev, struct device_attribute *attr,
++			    char *buf)
++{
++	return sprintf(buf, "%lu\n", ood.freq_on);
++}
++
++static ssize_t store_freq_on(struct device *dev, struct device_attribute *attr,
++			     const char *buf, size_t count)
++{
++	int ret;
++	unsigned long freq;
++
++	ret = sscanf(buf, "%lu", &freq);
++	if (ret != 1)
++		return -EINVAL;
++
++	freq = sgxfreq_get_freq_ceil(freq);
++
++	mutex_lock(&ood.mutex);
++
++	ood.freq_on = freq;
++	if (ood.sgx_clk_on)
++		sgxfreq_set_freq_request(ood.freq_on);
++
++	mutex_unlock(&ood.mutex);
++
++	return count;
++}
++
++static ssize_t show_freq_off(struct device *dev, struct device_attribute *attr,
++			     char *buf)
++{
++	return sprintf(buf, "%lu\n", ood.freq_off);
++}
++
++static ssize_t store_freq_off(struct device *dev, struct device_attribute *attr,
++			      const char *buf, size_t count)
++{
++	int ret;
++	unsigned long freq;
++
++	ret = sscanf(buf, "%lu", &freq);
++	if (ret != 1)
++		return -EINVAL;
++
++	freq = sgxfreq_get_freq_floor(freq);
++
++	mutex_lock(&ood.mutex);
++
++	ood.freq_off = freq;
++	if (!ood.sgx_clk_on)
++		sgxfreq_set_freq_request(ood.freq_off);
++
++	mutex_unlock(&ood.mutex);
++
++	return count;
++}
++static DEVICE_ATTR(freq_on, 0644, show_freq_on, store_freq_on);
++static DEVICE_ATTR(freq_off, 0644, show_freq_off, store_freq_off);
++
++static struct attribute *onoff_attributes[] = {
++	&dev_attr_freq_on.attr,
++	&dev_attr_freq_off.attr,
++	NULL
++};
++
++static struct attribute_group onoff_attr_group = {
++	.attrs = onoff_attributes,
++	.name = "onoff",
++};
++
++/************************ end sysfs interface ************************/
++
++int onoff_init(void)
++{
++	int ret;
++
++	mutex_init(&ood.mutex);
++
++	ret = sgxfreq_register_governor(&onoff_gov);
++	if (ret)
++		return ret;
++
++	ood.freq_off = sgxfreq_get_freq_min();
++	ood.freq_on = sgxfreq_get_freq_max();
++
++	return 0;
++}
++
++int onoff_deinit(void)
++{
++	return 0;
++}
++
++static int onoff_start(struct sgxfreq_sgx_data *data)
++{
++	int ret;
++
++	ood.sgx_clk_on = data->clk_on;
++
++	ret = sysfs_create_group(sgxfreq_kobj, &onoff_attr_group);
++	if (ret)
++		return ret;
++
++	if (ood.sgx_clk_on)
++		sgxfreq_set_freq_request(ood.freq_on);
++	else
++		sgxfreq_set_freq_request(ood.freq_off);
++
++	return 0;
++}
++
++static void onoff_stop(void)
++{
++	sysfs_remove_group(sgxfreq_kobj, &onoff_attr_group);
++}
++
++static void onoff_sgx_clk_on(void)
++{
++	mutex_lock(&ood.mutex);
++
++	ood.sgx_clk_on = true;
++	sgxfreq_set_freq_request(ood.freq_on);
++
++	mutex_unlock(&ood.mutex);
++}
++
++static void onoff_sgx_clk_off(void)
++{
++	mutex_lock(&ood.mutex);
++
++	ood.sgx_clk_on = false;
++	sgxfreq_set_freq_request(ood.freq_off);
++
++	mutex_unlock(&ood.mutex);
++}
++
+diff --git a/services4/system/sunxi/sgxfreq_userspace.c b/services4/system/sunxi/sgxfreq_userspace.c
+new file mode 100644
+index 0000000..aff6087
+--- /dev/null
++++ b/services4/system/sunxi/sgxfreq_userspace.c
+@@ -0,0 +1,124 @@
++/*
++ * Copyright (C) 2012 Texas Instruments, Inc
++ *
++ * This program is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 as published by
++ * the Free Software Foundation.
++ *
++ * This program is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
++ * more details.
++ *
++ * You should have received a copy of the GNU General Public License along with
++ * this program.  If not, see <http://www.gnu.org/licenses/>.
++ */
++
++#include <linux/sysfs.h>
++#include "sgxfreq.h"
++
++
++static int userspace_start(struct sgxfreq_sgx_data *data);
++static void userspace_stop(void);
++
++
++static struct sgxfreq_governor userspace_gov = {
++	.name =	"userspace",
++	.gov_start = userspace_start,
++	.gov_stop = userspace_stop,
++};
++
++
++static struct userspace_data {
++	unsigned long freq_user; /* in Hz */
++} usd;
++
++
++/*********************** begin sysfs interface ***********************/
++
++extern struct kobject *sgxfreq_kobj;
++
++
++static ssize_t show_frequency_set(struct device *dev, struct device_attribute *attr,
++			    char *buf)
++{
++	return sprintf(buf, "%lu\n", usd.freq_user);
++}
++
++
++static ssize_t store_frequency_set(struct device *dev,
++	struct device_attribute *attr, const char *buf, size_t count)
++{
++	int ret;
++	unsigned long freq;
++
++	ret = sscanf(buf, "%lu", &freq);
++	if (ret != 1)
++		return -EINVAL;
++
++	if (freq > sgxfreq_get_freq_max())
++		freq = sgxfreq_get_freq_max();
++	usd.freq_user = sgxfreq_set_freq_request(freq);
++	trace_printk("USERSPACE: new freq=%luHz.\n", usd.freq_user);
++
++	return count;
++}
++
++
++static DEVICE_ATTR(frequency_set, 0644,
++	show_frequency_set, store_frequency_set);
++
++
++static struct attribute *userspace_attributes[] = {
++	&dev_attr_frequency_set.attr,
++	NULL
++};
++
++
++static struct attribute_group userspace_attr_group = {
++	.attrs = userspace_attributes,
++	.name = "userspace",
++};
++
++/************************ end sysfs interface ************************/
++
++
++int userspace_init(void)
++{
++	int ret;
++
++	ret = sgxfreq_register_governor(&userspace_gov);
++	if (ret)
++		return ret;
++	return 0;
++}
++
++
++int userspace_deinit(void)
++{
++	return 0;
++}
++
++
++static int userspace_start(struct sgxfreq_sgx_data *data)
++{
++	int ret;
++
++	usd.freq_user = sgxfreq_get_freq();
++
++	ret = sysfs_create_group(sgxfreq_kobj, &userspace_attr_group);
++	if (ret)
++		return ret;
++
++	trace_printk("USERSPACE: started.\n");
++
++	return 0;
++}
++
++
++static void userspace_stop(void)
++{
++	sysfs_remove_group(sgxfreq_kobj, &userspace_attr_group);
++
++	trace_printk("USERSPACE: stopped.\n");
++}
+diff --git a/services4/system/sunxi/sysconfig.c b/services4/system/sunxi/sysconfig.c
+new file mode 100644
+index 0000000..f725792
+--- /dev/null
++++ b/services4/system/sunxi/sysconfig.c
+@@ -0,0 +1,1271 @@
++/*************************************************************************/ /*!
++@Title          System Configuration
++@Copyright      Copyright (c) Imagination Technologies Ltd. All Rights Reserved
++@Description    System Configuration functions
++@License        Dual MIT/GPLv2
++
++The contents of this file are subject to the MIT license as set out below.
++
++Permission is hereby granted, free of charge, to any person obtaining a copy
++of this software and associated documentation files (the "Software"), to deal
++in the Software without restriction, including without limitation the rights
++to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
++copies of the Software, and to permit persons to whom the Software is
++furnished to do so, subject to the following conditions:
++
++The above copyright notice and this permission notice shall be included in
++all copies or substantial portions of the Software.
++
++Alternatively, the contents of this file may be used under the terms of
++the GNU General Public License Version 2 ("GPL") in which case the provisions
++of GPL are applicable instead of those above.
++
++If you wish to allow use of your version of this file only under the terms of
++GPL, and not to allow others to use your version of this file under the terms
++of the MIT license, indicate your decision by deleting the provisions above
++and replace them with the notice and other provisions required by GPL as set
++out in the file called "GPL-COPYING" included in this distribution. If you do
++not delete the provisions above, a recipient may use your version of this file
++under the terms of either the MIT license or GPL.
++
++This License is also included in this distribution in the file called
++"MIT-COPYING".
++
++EXCEPT AS OTHERWISE STATED IN A NEGOTIATED AGREEMENT: (A) THE SOFTWARE IS
++PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING
++BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
++PURPOSE AND NONINFRINGEMENT; AND (B) IN NO EVENT SHALL THE AUTHORS OR
++COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
++IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
++CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
++*/ /**************************************************************************/
++
++#if defined(__linux__)
++#include <linux/dma-mapping.h>
++#endif
++
++#include "sysconfig.h"
++#include "services_headers.h"
++#include "kerneldisplay.h"
++#include "oemfuncs.h"
++#include "sgxinfo.h"
++#include "sgxinfokm.h"
++#include "syslocal.h"
++
++#include "ocpdefs.h"
++
++/* top level system data anchor point*/
++SYS_DATA* gpsSysData = (SYS_DATA*)IMG_NULL;
++SYS_DATA  gsSysData;
++
++static SYS_SPECIFIC_DATA gsSysSpecificData;
++SYS_SPECIFIC_DATA *gpsSysSpecificData;
++
++/* SGX structures */
++static IMG_UINT32			gui32SGXDeviceID;
++static SGX_DEVICE_MAP		gsSGXDeviceMap;
++static PVRSRV_DEVICE_NODE	*gpsSGXDevNode;
++
++
++#if defined(NO_HARDWARE) || defined(SGX_OCP_REGS_ENABLED)
++static IMG_CPU_VIRTADDR gsSGXRegsCPUVAddr;
++#endif
++
++#if defined(PVR_LINUX_DYNAMIC_SGX_RESOURCE_INFO)
++extern struct platform_device *gpsPVRLDMDev;
++#endif
++
++IMG_UINT32 PVRSRV_BridgeDispatchKM(IMG_UINT32	Ioctl,
++								   IMG_BYTE		*pInBuf,
++								   IMG_UINT32	InBufLen,
++								   IMG_BYTE		*pOutBuf,
++								   IMG_UINT32	OutBufLen,
++								   IMG_UINT32	*pdwBytesTransferred);
++
++#if defined(SGX_OCP_REGS_ENABLED)
++
++static IMG_CPU_VIRTADDR gpvOCPRegsLinAddr;
++
++static PVRSRV_ERROR EnableSGXClocksWrap(SYS_DATA *psSysData)
++{
++	PVRSRV_ERROR eError = EnableSGXClocks(psSysData);
++
++#if !defined(SGX_OCP_NO_INT_BYPASS)
++	if(eError == PVRSRV_OK)
++	{
++		OSWriteHWReg(gpvOCPRegsLinAddr, EUR_CR_OCP_DEBUG_CONFIG, EUR_CR_OCP_DEBUG_CONFIG_THALIA_INT_BYPASS_MASK);
++	}
++#endif
++	return eError;
++}
++
++#else /* defined(SGX_OCP_REGS_ENABLED) */
++
++static INLINE PVRSRV_ERROR EnableSGXClocksWrap(SYS_DATA *psSysData)
++{
++	return EnableSGXClocks(psSysData);
++}
++
++#endif /* defined(SGX_OCP_REGS_ENABLED) */
++
++static INLINE PVRSRV_ERROR EnableSystemClocksWrap(SYS_DATA *psSysData)
++{
++	PVRSRV_ERROR eError = EnableSystemClocks(psSysData);
++
++#if !defined(SUPPORT_ACTIVE_POWER_MANAGEMENT)
++	if(eError == PVRSRV_OK)
++	{
++		/*
++		 * The SGX Clocks are enabled separately if active power
++		 * management is enabled.
++		 */
++		eError = EnableSGXClocksWrap(psSysData);
++		if (eError != PVRSRV_OK)
++		{
++			DisableSystemClocks(psSysData);
++		}
++	}
++#endif
++
++	return eError;
++}
++
++/*!
++******************************************************************************
++
++ @Function	SysLocateDevices
++
++ @Description	Specifies devices in the systems memory map
++
++ @Input		psSysData - sys data
++
++ @Return	PVRSRV_ERROR
++
++******************************************************************************/
++static PVRSRV_ERROR SysLocateDevices(SYS_DATA *psSysData)
++{
++#if defined(NO_HARDWARE)
++	PVRSRV_ERROR eError;
++	IMG_CPU_PHYADDR sCpuPAddr;
++#else
++#if defined(PVR_LINUX_DYNAMIC_SGX_RESOURCE_INFO)
++	struct resource *dev_res;
++	int dev_irq;
++#endif
++#endif
++
++	PVR_UNREFERENCED_PARAMETER(psSysData);
++
++	/* SGX Device: */
++	gsSGXDeviceMap.ui32Flags = 0x0;
++	
++#if defined(NO_HARDWARE)
++	/* 
++	 * For no hardware, allocate some contiguous memory for the
++	 * register block.
++	 */
++
++	/* Registers */
++	gsSGXDeviceMap.ui32RegsSize = SYS_OMAP_SGX_REGS_SIZE;
++
++	eError = OSBaseAllocContigMemory(gsSGXDeviceMap.ui32RegsSize,
++									 &gsSGXRegsCPUVAddr,
++									 &sCpuPAddr);
++	if(eError != PVRSRV_OK)
++	{
++		return eError;
++	}
++	gsSGXDeviceMap.sRegsCpuPBase = sCpuPAddr;
++	gsSGXDeviceMap.sRegsSysPBase = SysCpuPAddrToSysPAddr(gsSGXDeviceMap.sRegsCpuPBase);
++#if defined(__linux__)
++	/* Indicate the registers are already mapped */
++	gsSGXDeviceMap.pvRegsCpuVBase = gsSGXRegsCPUVAddr;
++#else
++	/*
++	 * FIXME: Could we just use the virtual address returned by
++	 * OSBaseAllocContigMemory?
++	 */
++	gsSGXDeviceMap.pvRegsCpuVBase = IMG_NULL;
++#endif
++
++	OSMemSet(gsSGXRegsCPUVAddr, 0, gsSGXDeviceMap.ui32RegsSize);
++
++	/*
++		device interrupt IRQ
++		Note: no interrupts available on no hardware system
++	*/
++	gsSGXDeviceMap.ui32IRQ = 0;
++
++#else /* defined(NO_HARDWARE) */
++#if defined(PVR_LINUX_DYNAMIC_SGX_RESOURCE_INFO)
++	/* get the resource and IRQ through platform resource API */
++	dev_res = platform_get_resource(gpsPVRLDMDev, IORESOURCE_MEM, 0);
++	if (dev_res == NULL)
++	{
++		PVR_DPF((PVR_DBG_ERROR, "%s: platform_get_resource failed", __FUNCTION__));
++		return PVRSRV_ERROR_INVALID_DEVICE;
++	}
++
++	dev_irq = platform_get_irq(gpsPVRLDMDev, 0);
++	if (dev_irq < 0)
++	{
++		PVR_DPF((PVR_DBG_ERROR, "%s: platform_get_irq failed (%d)", __FUNCTION__, -dev_irq));
++		return PVRSRV_ERROR_INVALID_DEVICE;
++	}
++
++	gsSGXDeviceMap.sRegsSysPBase.uiAddr = dev_res->start;
++	gsSGXDeviceMap.sRegsCpuPBase =
++		SysSysPAddrToCpuPAddr(gsSGXDeviceMap.sRegsSysPBase);
++	PVR_TRACE(("SGX register base: 0x%lx", (unsigned long)gsSGXDeviceMap.sRegsCpuPBase.uiAddr));
++
++	gsSGXDeviceMap.ui32RegsSize = (unsigned int)(dev_res->end - dev_res->start);
++	PVR_TRACE(("SGX register size: %d",gsSGXDeviceMap.ui32RegsSize));
++
++	gsSGXDeviceMap.ui32IRQ = dev_irq;
++	PVR_TRACE(("SGX IRQ: %d", gsSGXDeviceMap.ui32IRQ));
++#else	/* defined(PVR_LINUX_DYNAMIC_SGX_RESOURCE_INFO) */
++	gsSGXDeviceMap.sRegsSysPBase.uiAddr = SYS_OMAP_SGX_REGS_SYS_PHYS_BASE;
++	gsSGXDeviceMap.sRegsCpuPBase = SysSysPAddrToCpuPAddr(gsSGXDeviceMap.sRegsSysPBase);
++	gsSGXDeviceMap.ui32RegsSize = SYS_OMAP_SGX_REGS_SIZE;
++
++	gsSGXDeviceMap.ui32IRQ = SYS_OMAP_SGX_IRQ;
++
++#endif	/* defined(PVR_LINUX_DYNAMIC_SGX_RESOURCE_INFO) */
++#if defined(SGX_OCP_REGS_ENABLED)
++	gsSGXRegsCPUVAddr = OSMapPhysToLin(gsSGXDeviceMap.sRegsCpuPBase,
++	gsSGXDeviceMap.ui32RegsSize,
++											 PVRSRV_HAP_UNCACHED|PVRSRV_HAP_KERNEL_ONLY,
++											 IMG_NULL);
++
++	if (gsSGXRegsCPUVAddr == IMG_NULL)
++	{
++		PVR_DPF((PVR_DBG_ERROR,"SysLocateDevices: Failed to map SGX registers"));
++		return PVRSRV_ERROR_BAD_MAPPING;
++	}
++
++	/* Indicate the registers are already mapped */
++	gsSGXDeviceMap.pvRegsCpuVBase = gsSGXRegsCPUVAddr;
++	gpvOCPRegsLinAddr = gsSGXRegsCPUVAddr;
++#endif
++#endif /* defined(NO_HARDWARE) */
++
++#if defined(PDUMP)
++	{
++		/* initialise memory region name for pdumping */
++		static IMG_CHAR pszPDumpDevName[] = "SGXMEM";
++		gsSGXDeviceMap.pszPDumpDevName = pszPDumpDevName;
++	}
++#endif
++
++	/* add other devices here: */
++
++
++	return PVRSRV_OK;
++}
++
++
++/*!
++******************************************************************************
++
++ @Function	SysCreateVersionString
++
++ @Description Read the version string 
++
++ @Return   IMG_CHAR *  : Version string
++
++******************************************************************************/
++static IMG_CHAR *SysCreateVersionString(void)
++{
++	static IMG_CHAR aszVersionString[100];
++	IMG_UINT32 ui32MaxStrLen;
++	SYS_DATA	*psSysData;
++	IMG_UINT32	ui32SGXRevision;
++	IMG_INT32	i32Count;
++
++	SysAcquireData(&psSysData);
++
++	ui32SGXRevision = SGX_CORE_REV;
++	ui32MaxStrLen = 99;
++
++	i32Count = OSSNPrintf(aszVersionString, ui32MaxStrLen + 1,
++			"SGX revision = %u",
++			(IMG_UINT)(ui32SGXRevision));
++	if(i32Count == -1)
++	{
++		return IMG_NULL;
++	}
++
++	return aszVersionString;
++}
++
++
++/*!
++******************************************************************************
++
++ @Function	SysInitialise
++ 
++ @Description Initialises kernel services at 'driver load' time
++ 
++ @Return   PVRSRV_ERROR  : 
++
++******************************************************************************/
++PVRSRV_ERROR SysInitialise(IMG_VOID)
++{
++	IMG_UINT32			i;
++	PVRSRV_ERROR 		eError;
++	PVRSRV_DEVICE_NODE	*psDeviceNode;
++#if !defined(PVR_NO_OMAP_TIMER)
++	IMG_CPU_PHYADDR		TimerRegPhysBase;
++#endif
++#if !defined(SGX_DYNAMIC_TIMING_INFO)
++	SGX_TIMING_INFORMATION*	psTimingInfo;
++#endif
++
++#if defined(__linux__)
++	/* Required for hosts using 64 bit addresses */ 
++	dma_set_mask_and_coherent(&gpsPVRLDMDev->dev, DMA_BIT_MASK(32));
++#endif
++
++	gpsSysData = &gsSysData;
++	OSMemSet(gpsSysData, 0, sizeof(SYS_DATA));
++
++	gpsSysSpecificData =  &gsSysSpecificData;
++	OSMemSet(gpsSysSpecificData, 0, sizeof(SYS_SPECIFIC_DATA));
++
++	gpsSysData->pvSysSpecificData = gpsSysSpecificData;
++
++	eError = OSInitEnvData(&gpsSysData->pvEnvSpecificData);
++	if (eError != PVRSRV_OK)
++	{
++		PVR_DPF((PVR_DBG_ERROR,"SysInitialise: Failed to setup env structure"));
++		(IMG_VOID)SysDeinitialise(gpsSysData);
++		gpsSysData = IMG_NULL;
++		return eError;
++	}
++	SYS_SPECIFIC_DATA_SET(&gsSysSpecificData, SYS_SPECIFIC_DATA_ENABLE_ENVDATA);
++
++	gpsSysData->ui32NumDevices = SYS_DEVICE_COUNT;
++
++	/* init device ID's */
++	for(i=0; i<SYS_DEVICE_COUNT; i++)
++	{
++		gpsSysData->sDeviceID[i].uiID = i;
++		gpsSysData->sDeviceID[i].bInUse = IMG_FALSE;
++	}
++
++	gpsSysData->psDeviceNodeList = IMG_NULL;
++	gpsSysData->psQueueList = IMG_NULL;
++
++	eError = SysInitialiseCommon(gpsSysData);
++	if (eError != PVRSRV_OK)
++	{
++		PVR_DPF((PVR_DBG_ERROR,"SysInitialise: Failed in SysInitialiseCommon"));
++		(IMG_VOID)SysDeinitialise(gpsSysData);
++		gpsSysData = IMG_NULL;
++		return eError;
++	}
++
++#if !defined(SGX_DYNAMIC_TIMING_INFO)
++	/* Set up timing information*/
++	psTimingInfo = &gsSGXDeviceMap.sTimingInfo;
++	psTimingInfo->ui32CoreClockSpeed = SYS_SGX_CLOCK_SPEED;
++	psTimingInfo->ui32HWRecoveryFreq = SYS_SGX_HWRECOVERY_TIMEOUT_FREQ; 
++#if defined(SUPPORT_ACTIVE_POWER_MANAGEMENT)
++	psTimingInfo->bEnableActivePM = IMG_TRUE;
++#else	
++	psTimingInfo->bEnableActivePM = IMG_FALSE;
++#endif /* SUPPORT_ACTIVE_POWER_MANAGEMENT */
++	psTimingInfo->ui32ActivePowManLatencyms = SYS_SGX_ACTIVE_POWER_LATENCY_MS; 
++	psTimingInfo->ui32uKernelFreq = SYS_SGX_PDS_TIMER_FREQ; 
++#endif
++
++	/*
++		Setup the Source Clock Divider value
++	*/
++	gpsSysSpecificData->ui32SrcClockDiv = 3;
++
++	/*
++		Locate the devices within the system, specifying 
++		the physical addresses of each devices components 
++		(regs, mem, ports etc.)
++	*/
++	eError = SysLocateDevices(gpsSysData);
++	if (eError != PVRSRV_OK)
++	{
++		PVR_DPF((PVR_DBG_ERROR,"SysInitialise: Failed to locate devices"));
++		(IMG_VOID)SysDeinitialise(gpsSysData);
++		gpsSysData = IMG_NULL;
++		return eError;
++	}
++	SYS_SPECIFIC_DATA_SET(&gsSysSpecificData, SYS_SPECIFIC_DATA_ENABLE_LOCATEDEV);
++
++	eError = SysPMRuntimeRegister();
++	if (eError != PVRSRV_OK)
++	{
++		PVR_DPF((PVR_DBG_ERROR,"SysInitialise: Failed to register with OSPM!"));
++		(IMG_VOID)SysDeinitialise(gpsSysData);
++		gpsSysData = IMG_NULL;
++		return eError;
++	}
++	SYS_SPECIFIC_DATA_SET(&gsSysSpecificData, SYS_SPECIFIC_DATA_ENABLE_PM_RUNTIME);
++
++	eError = SysDvfsInitialize(gpsSysSpecificData);
++	if (eError != PVRSRV_OK)
++	{
++		PVR_DPF((PVR_DBG_ERROR,"SysInitialise: Failed to initialize DVFS"));
++		(IMG_VOID)SysDeinitialise(gpsSysData);
++		gpsSysData = IMG_NULL;
++		return eError;
++	}
++	SYS_SPECIFIC_DATA_SET(&gsSysSpecificData, SYS_SPECIFIC_DATA_DVFS_INIT);
++
++	/*
++		Register devices with the system
++		This also sets up their memory maps/heaps
++	*/
++	eError = PVRSRVRegisterDevice(gpsSysData, SGXRegisterDevice,
++								  DEVICE_SGX_INTERRUPT, &gui32SGXDeviceID);
++	if (eError != PVRSRV_OK)
++	{
++		PVR_DPF((PVR_DBG_ERROR,"SysInitialise: Failed to register device!"));
++		(IMG_VOID)SysDeinitialise(gpsSysData);
++		gpsSysData = IMG_NULL;
++		return eError;
++	}
++	SYS_SPECIFIC_DATA_SET(&gsSysSpecificData, SYS_SPECIFIC_DATA_ENABLE_REGDEV);
++
++	/*
++		Once all devices are registered, specify the backing store
++		and, if required, customise the memory heap config
++	*/	
++	psDeviceNode = gpsSysData->psDeviceNodeList;
++	while(psDeviceNode)
++	{
++		/* perform any OEM SOC address space customisations here */
++		switch(psDeviceNode->sDevId.eDeviceType)
++		{
++			case PVRSRV_DEVICE_TYPE_SGX:
++			{
++				DEVICE_MEMORY_INFO *psDevMemoryInfo;
++				DEVICE_MEMORY_HEAP_INFO *psDeviceMemoryHeap;
++
++				/* 
++					specify the backing store to use for the devices MMU PT/PDs
++					- the PT/PDs are always UMA in this system
++				*/
++				psDeviceNode->psLocalDevMemArena = IMG_NULL;
++
++				/* useful pointers */
++				psDevMemoryInfo = &psDeviceNode->sDevMemoryInfo;
++				psDeviceMemoryHeap = psDevMemoryInfo->psDeviceMemoryHeap;
++
++				/* specify the backing store for all SGX heaps */
++				for(i=0; i<psDevMemoryInfo->ui32HeapCount; i++)
++				{
++					psDeviceMemoryHeap[i].ui32Attribs |= PVRSRV_BACKINGSTORE_SYSMEM_NONCONTIG;
++				}
++
++				gpsSGXDevNode = psDeviceNode;
++				gsSysSpecificData.psSGXDevNode = psDeviceNode;
++
++				break;
++			}
++			default:
++				PVR_DPF((PVR_DBG_ERROR,"SysInitialise: Failed to find SGX device node!"));
++				return PVRSRV_ERROR_INIT_FAILURE;
++		}
++
++		/* advance to next device */
++		psDeviceNode = psDeviceNode->psNext;
++	}
++
++	eError = EnableSystemClocksWrap(gpsSysData);
++	if (eError != PVRSRV_OK)
++	{
++		PVR_DPF((PVR_DBG_ERROR,"SysInitialise: Failed to Enable system clocks (%d)", eError));
++		(IMG_VOID)SysDeinitialise(gpsSysData);
++		gpsSysData = IMG_NULL;
++		return eError;
++	}
++	SYS_SPECIFIC_DATA_SET(&gsSysSpecificData, SYS_SPECIFIC_DATA_ENABLE_SYSCLOCKS);
++#if defined(SUPPORT_ACTIVE_POWER_MANAGEMENT)
++	eError = EnableSGXClocksWrap(gpsSysData);
++	if (eError != PVRSRV_OK)
++	{
++		PVR_DPF((PVR_DBG_ERROR,"SysInitialise: Failed to Enable SGX clocks (%d)", eError));
++		(IMG_VOID)SysDeinitialise(gpsSysData);
++		gpsSysData = IMG_NULL;
++		return eError;
++	}
++#endif	/* SUPPORT_ACTIVE_POWER_MANAGEMENT */
++
++	eError = PVRSRVInitialiseDevice(gui32SGXDeviceID);
++	if (eError != PVRSRV_OK)
++	{
++		PVR_DPF((PVR_DBG_ERROR,"SysInitialise: Failed to initialise device!"));
++		(IMG_VOID)SysDeinitialise(gpsSysData);
++		gpsSysData = IMG_NULL;
++		return eError;
++	}
++	SYS_SPECIFIC_DATA_SET(&gsSysSpecificData, SYS_SPECIFIC_DATA_ENABLE_INITDEV);
++
++#if defined(SUPPORT_ACTIVE_POWER_MANAGEMENT)
++	/* SGX defaults to D3 power state */
++	DisableSGXClocks(gpsSysData);
++#endif	/* SUPPORT_ACTIVE_POWER_MANAGEMENT */
++
++#if !defined(PVR_NO_OMAP_TIMER)
++#if defined(PVR_OMAP_TIMER_BASE_IN_SYS_SPEC_DATA)
++	TimerRegPhysBase = gsSysSpecificData.sTimerRegPhysBase;
++#else
++	TimerRegPhysBase.uiAddr = SYS_OMAP_GPTIMER_REGS_SYS_PHYS_BASE;
++#endif
++	gpsSysData->pvSOCTimerRegisterKM = IMG_NULL;
++	gpsSysData->hSOCTimerRegisterOSMemHandle = 0;
++	if (TimerRegPhysBase.uiAddr != 0)
++	{
++		OSReservePhys(TimerRegPhysBase,
++				  4,
++				  PVRSRV_HAP_MULTI_PROCESS|PVRSRV_HAP_UNCACHED,
++				  IMG_NULL,
++				  (IMG_VOID **)&gpsSysData->pvSOCTimerRegisterKM,
++				  &gpsSysData->hSOCTimerRegisterOSMemHandle);
++	}
++#endif /* !defined(PVR_NO_OMAP_TIMER) */
++
++
++	return PVRSRV_OK;
++}
++
++
++/*!
++******************************************************************************
++
++ @Function	SysFinalise
++ 
++ @Description Final part of initialisation at 'driver load' time
++ 
++ @Return   PVRSRV_ERROR  : 
++
++******************************************************************************/
++PVRSRV_ERROR SysFinalise(IMG_VOID)
++{
++	PVRSRV_ERROR eError = PVRSRV_OK;
++
++#if defined(SUPPORT_ACTIVE_POWER_MANAGEMENT)
++	eError = EnableSGXClocksWrap(gpsSysData);
++	if (eError != PVRSRV_OK)
++	{
++		PVR_DPF((PVR_DBG_ERROR,"SysFinalise: Failed to Enable SGX clocks (%d)", eError));
++		return eError;
++	}
++#endif	/* SUPPORT_ACTIVE_POWER_MANAGEMENT */
++
++	eError = OSInstallMISR(gpsSysData);
++	if (eError != PVRSRV_OK)
++	{
++		PVR_DPF((PVR_DBG_ERROR,"SysFinalise: Failed to install MISR"));
++		return eError;
++	}
++	SYS_SPECIFIC_DATA_SET(&gsSysSpecificData, SYS_SPECIFIC_DATA_ENABLE_MISR);
++
++#if defined(SYS_USING_INTERRUPTS)
++	/* install a Device ISR */
++	eError = OSInstallDeviceLISR(gpsSysData, gsSGXDeviceMap.ui32IRQ, "SGX ISR", gpsSGXDevNode);
++	if (eError != PVRSRV_OK)
++	{
++		PVR_DPF((PVR_DBG_ERROR,"SysFinalise: Failed to install ISR"));
++		return eError;
++	}
++	SYS_SPECIFIC_DATA_SET(&gsSysSpecificData, SYS_SPECIFIC_DATA_ENABLE_LISR);
++#if !defined(SUPPORT_ACTIVE_POWER_MANAGEMENT)
++	SysEnableSGXInterrupts(gpsSysData);
++#endif
++#endif /* defined(SYS_USING_INTERRUPTS) */
++#if defined(__linux__) || defined(__QNXNTO__)
++	/* Create a human readable version string for this system */
++	gpsSysData->pszVersionString = SysCreateVersionString();
++	if (!gpsSysData->pszVersionString)
++	{
++		PVR_DPF((PVR_DBG_ERROR,"SysFinalise: Failed to create a system version string"));
++	}
++	else
++	{
++		PVR_TRACE(("SysFinalise: Version string: %s", gpsSysData->pszVersionString));
++	}
++#endif
++
++#if defined(SUPPORT_ACTIVE_POWER_MANAGEMENT)
++	/* SGX defaults to D3 power state */
++	DisableSGXClocks(gpsSysData);
++#endif	/* SUPPORT_ACTIVE_POWER_MANAGEMENT */
++
++	gpsSysSpecificData->bSGXInitComplete = IMG_TRUE;
++
++	return eError;
++}
++
++
++/*!
++******************************************************************************
++
++ @Function	SysDeinitialise
++
++ @Description	De-initialises kernel services at 'driver unload' time
++
++ @Return	PVRSRV_ERROR
++
++******************************************************************************/
++PVRSRV_ERROR SysDeinitialise (SYS_DATA *psSysData)
++{
++	PVRSRV_ERROR eError;
++
++	PVR_UNREFERENCED_PARAMETER(psSysData);
++
++	if(gpsSysData->pvSOCTimerRegisterKM)
++	{
++		OSUnReservePhys(gpsSysData->pvSOCTimerRegisterKM,
++						4,
++						PVRSRV_HAP_MULTI_PROCESS|PVRSRV_HAP_UNCACHED,
++						gpsSysData->hSOCTimerRegisterOSMemHandle);
++	}
++
++
++#if defined(SYS_USING_INTERRUPTS)
++	if (SYS_SPECIFIC_DATA_TEST(gpsSysSpecificData, SYS_SPECIFIC_DATA_ENABLE_LISR))
++	{
++		eError = OSUninstallDeviceLISR(gpsSysData);
++		if (eError != PVRSRV_OK)
++		{
++			PVR_DPF((PVR_DBG_ERROR,"SysDeinitialise: OSUninstallDeviceLISR failed"));
++			return eError;
++		}
++	}
++#endif
++
++	if (SYS_SPECIFIC_DATA_TEST(gpsSysSpecificData, SYS_SPECIFIC_DATA_ENABLE_MISR))
++	{
++		eError = OSUninstallMISR(gpsSysData);
++		if (eError != PVRSRV_OK)
++		{
++			PVR_DPF((PVR_DBG_ERROR,"SysDeinitialise: OSUninstallMISR failed"));
++			return eError;
++		}
++	}
++
++	if (SYS_SPECIFIC_DATA_TEST(gpsSysSpecificData, SYS_SPECIFIC_DATA_ENABLE_INITDEV))
++	{
++#if defined(SUPPORT_ACTIVE_POWER_MANAGEMENT)
++		PVR_ASSERT(SYS_SPECIFIC_DATA_TEST(gpsSysSpecificData, SYS_SPECIFIC_DATA_ENABLE_SYSCLOCKS));
++		/* Reenable SGX clocks whilst SGX is being deinitialised. */
++		eError = EnableSGXClocksWrap(gpsSysData);
++		if (eError != PVRSRV_OK)
++		{
++			PVR_DPF((PVR_DBG_ERROR,"SysDeinitialise: EnableSGXClocks failed"));
++			return eError;
++		}
++#endif	/* SUPPORT_ACTIVE_POWER_MANAGEMENT */
++
++		/* Deinitialise SGX */
++		eError = PVRSRVDeinitialiseDevice(gui32SGXDeviceID);
++		if (eError != PVRSRV_OK)
++		{
++			PVR_DPF((PVR_DBG_ERROR,"SysDeinitialise: failed to de-init the device"));
++			return eError;
++		}
++	}
++
++	/* Disable system clocks. Must happen after last access to hardware */
++	if (SYS_SPECIFIC_DATA_TEST(gpsSysSpecificData, SYS_SPECIFIC_DATA_ENABLE_SYSCLOCKS))
++	{
++		DisableSystemClocks(gpsSysData);
++	}
++
++	if (SYS_SPECIFIC_DATA_TEST(gpsSysSpecificData, SYS_SPECIFIC_DATA_DVFS_INIT))
++	{
++		eError = SysDvfsDeinitialize(gpsSysSpecificData);
++		if (eError != PVRSRV_OK)
++		{
++			PVR_DPF((PVR_DBG_ERROR,"SysDeinitialise: Failed to de-init DVFS"));
++			gpsSysData = IMG_NULL;
++			return eError;
++		}
++	}
++
++	if (SYS_SPECIFIC_DATA_TEST(gpsSysSpecificData, SYS_SPECIFIC_DATA_ENABLE_PM_RUNTIME))
++	{
++		eError = SysPMRuntimeUnregister();
++		if (eError != PVRSRV_OK)
++		{
++			PVR_DPF((PVR_DBG_ERROR,"SysDeinitialise: Failed to unregister with OSPM!"));
++			gpsSysData = IMG_NULL;
++			return eError;
++		}
++	}
++
++	if (SYS_SPECIFIC_DATA_TEST(gpsSysSpecificData, SYS_SPECIFIC_DATA_ENABLE_ENVDATA))
++	{	
++		eError = OSDeInitEnvData(gpsSysData->pvEnvSpecificData);
++		if (eError != PVRSRV_OK)
++		{
++			PVR_DPF((PVR_DBG_ERROR,"SysDeinitialise: failed to de-init env structure"));
++			return eError;
++		}
++	}
++
++	SysDeinitialiseCommon(gpsSysData);
++
++#if defined(NO_HARDWARE) || defined(SGX_OCP_REGS_ENABLED)
++	if(gsSGXRegsCPUVAddr != IMG_NULL)
++	{
++#if defined(NO_HARDWARE)
++		/* Free hardware resources. */
++		OSBaseFreeContigMemory(SYS_OMAP_SGX_REGS_SIZE, gsSGXRegsCPUVAddr, gsSGXDeviceMap.sRegsCpuPBase);
++#else
++#if defined(SGX_OCP_REGS_ENABLED)
++		OSUnMapPhysToLin(gsSGXRegsCPUVAddr,
++		gsSGXDeviceMap.ui32RegsSize,
++												 PVRSRV_HAP_UNCACHED|PVRSRV_HAP_KERNEL_ONLY,
++												 IMG_NULL);
++
++		gpvOCPRegsLinAddr = IMG_NULL;
++#endif
++#endif	/* defined(NO_HARDWARE) */
++		gsSGXRegsCPUVAddr = IMG_NULL;
++		gsSGXDeviceMap.pvRegsCpuVBase = gsSGXRegsCPUVAddr;
++	}
++#endif	/* defined(NO_HARDWARE) || defined(SGX_OCP_REGS_ENABLED) */
++
++	
++	gpsSysSpecificData->ui32SysSpecificData = 0;
++	gpsSysSpecificData->bSGXInitComplete = IMG_FALSE;
++
++	gpsSysData = IMG_NULL;
++
++	return PVRSRV_OK;
++}
++
++
++/*!
++******************************************************************************
++
++ @Function		SysGetDeviceMemoryMap
++
++ @Description	returns a device address map for the specified device
++
++ @Input			eDeviceType - device type
++ @Input			ppvDeviceMap - void ptr to receive device specific info.
++
++ @Return		PVRSRV_ERROR
++
++******************************************************************************/
++PVRSRV_ERROR SysGetDeviceMemoryMap(PVRSRV_DEVICE_TYPE	eDeviceType,
++								   IMG_VOID				**ppvDeviceMap)
++{
++
++	switch(eDeviceType)
++	{
++		case PVRSRV_DEVICE_TYPE_SGX:
++		{
++			/* just return a pointer to the structure */
++			*ppvDeviceMap = (IMG_VOID*)&gsSGXDeviceMap;
++
++			break;
++		}
++		default:
++		{
++			PVR_DPF((PVR_DBG_ERROR,"SysGetDeviceMemoryMap: unsupported device type"));
++		}
++	}
++	return PVRSRV_OK;
++}
++
++
++/*!
++******************************************************************************
++ @Function        SysCpuPAddrToDevPAddr
++
++ @Description     Compute a device physical address from a cpu physical
++                  address. Relevant when
++
++ @Input           cpu_paddr - cpu physical address.
++ @Input           eDeviceType - device type required if DevPAddr
++                                address spaces vary across devices
++                                in the same system
++ @Return         device physical address.
++
++******************************************************************************/
++IMG_DEV_PHYADDR SysCpuPAddrToDevPAddr(PVRSRV_DEVICE_TYPE	eDeviceType,
++									  IMG_CPU_PHYADDR		CpuPAddr)
++{
++	IMG_DEV_PHYADDR DevPAddr;
++
++	PVR_UNREFERENCED_PARAMETER(eDeviceType);
++
++	/* Note: for UMA system we assume DevP == CpuP */
++	DevPAddr.uiAddr = CpuPAddr.uiAddr;
++	
++	return DevPAddr;
++}
++
++/*!
++******************************************************************************
++ @Function        SysSysPAddrToCpuPAddr
++
++ @Description     Compute a cpu physical address from a system physical
++                  address.
++
++ @Input           sys_paddr - system physical address.
++ @Return          cpu physical address.
++
++******************************************************************************/
++IMG_CPU_PHYADDR SysSysPAddrToCpuPAddr (IMG_SYS_PHYADDR sys_paddr)
++{
++	IMG_CPU_PHYADDR cpu_paddr;
++
++	/* This would only be an inequality if the CPU's MMU did not point to
++	   sys address 0, ie. multi CPU system */
++	cpu_paddr.uiAddr = sys_paddr.uiAddr;
++	return cpu_paddr;
++}
++
++/*!
++******************************************************************************
++ @Function        SysCpuPAddrToSysPAddr
++
++ @Description     Compute a system physical address from a cpu physical
++	            address.
++
++ @Input           cpu_paddr - cpu physical address.
++ @Return          device physical address.
++
++******************************************************************************/
++IMG_SYS_PHYADDR SysCpuPAddrToSysPAddr (IMG_CPU_PHYADDR cpu_paddr)
++{
++	IMG_SYS_PHYADDR sys_paddr;
++
++	/* This would only be an inequality if the CPU's MMU did not point to
++	   sys address 0, ie. multi CPU system */
++	sys_paddr.uiAddr = cpu_paddr.uiAddr;
++	return sys_paddr;
++}
++
++
++/*!
++******************************************************************************
++ @Function        SysSysPAddrToDevPAddr
++
++ @Description     Compute a device physical address from a system physical
++	            address.
++
++ @Input           SysPAddr - system physical address.
++ @Input           eDeviceType - device type required if DevPAddr 
++				address spaces vary across devices 
++				in the same system
++
++ @Return        Device physical address.
++
++******************************************************************************/
++IMG_DEV_PHYADDR SysSysPAddrToDevPAddr(PVRSRV_DEVICE_TYPE eDeviceType, IMG_SYS_PHYADDR SysPAddr)
++{
++	IMG_DEV_PHYADDR DevPAddr;
++
++	PVR_UNREFERENCED_PARAMETER(eDeviceType);
++
++	/* Note: for UMA system we assume DevP == CpuP */
++	DevPAddr.uiAddr = SysPAddr.uiAddr;
++
++	return DevPAddr;
++}
++
++
++/*!
++******************************************************************************
++ @Function        SysDevPAddrToSysPAddr
++
++ @Description     Compute a device physical address from a system physical
++	            address.
++
++ @Input           DevPAddr - device physical address.
++ @Input           eDeviceType - device type required if DevPAddr 
++		  address spaces vary across devices 
++		  in the same system
++
++ @Return        System physical address.
++
++******************************************************************************/
++IMG_SYS_PHYADDR SysDevPAddrToSysPAddr(PVRSRV_DEVICE_TYPE eDeviceType, IMG_DEV_PHYADDR DevPAddr)
++{
++	IMG_SYS_PHYADDR SysPAddr;
++
++	PVR_UNREFERENCED_PARAMETER(eDeviceType);
++
++	/* Note: for UMA system we assume DevP == SysP */
++	SysPAddr.uiAddr = DevPAddr.uiAddr;
++
++	return SysPAddr;
++}
++
++
++/*****************************************************************************
++ @Function        SysRegisterExternalDevice
++
++ @Description     Called when a 3rd party device registers with services
++
++ @Input           psDeviceNode - the new device node.
++
++ @Return        IMG_VOID
++*****************************************************************************/
++IMG_VOID SysRegisterExternalDevice(PVRSRV_DEVICE_NODE *psDeviceNode)
++{
++	PVR_UNREFERENCED_PARAMETER(psDeviceNode);
++}
++
++
++/*****************************************************************************
++ @Function        SysRemoveExternalDevice
++
++ @Description     Called when a 3rd party device unregisters from services
++
++ @Input           psDeviceNode - the device node being removed.
++
++ @Return        IMG_VOID
++*****************************************************************************/
++IMG_VOID SysRemoveExternalDevice(PVRSRV_DEVICE_NODE *psDeviceNode)
++{
++	PVR_UNREFERENCED_PARAMETER(psDeviceNode);
++}
++
++/*!
++******************************************************************************
++ @Function        SysGetInterruptSource
++
++ @Description     Returns System specific information about the device(s) that
++				generated the interrupt in the system
++
++ @Input           psSysData
++ @Input           psDeviceNode
++
++ @Return        System specific information indicating which device(s) 
++				generated the interrupt
++
++******************************************************************************/
++IMG_UINT32 SysGetInterruptSource(SYS_DATA			*psSysData,
++								 PVRSRV_DEVICE_NODE	*psDeviceNode)
++{
++	PVR_UNREFERENCED_PARAMETER(psSysData);
++#if defined(NO_HARDWARE)
++	/* no interrupts in no_hw system just return all bits */
++	return 0xFFFFFFFF;
++#else
++	/* Not a shared irq, so we know this is an interrupt for this device */
++	return psDeviceNode->ui32SOCInterruptBit;
++#endif
++}
++
++
++/*!
++******************************************************************************
++ @Function        SysClearInterrupts
++
++ @Description     Clears specified system interrupts
++
++ @Input           psSysData
++ @Input           ui32ClearBits
++
++ @Return        IMG_VOID
++
++******************************************************************************/
++IMG_VOID SysClearInterrupts(SYS_DATA* psSysData, IMG_UINT32 ui32ClearBits)
++{
++	PVR_UNREFERENCED_PARAMETER(ui32ClearBits);
++	PVR_UNREFERENCED_PARAMETER(psSysData);
++#if !defined(NO_HARDWARE)
++#if defined(SGX_OCP_NO_INT_BYPASS)
++	OSWriteHWReg(gpvOCPRegsLinAddr, EUR_CR_OCP_IRQSTATUS_2, 0x1);
++#endif
++	/* Flush posted writes */
++	OSReadHWReg(((PVRSRV_SGXDEV_INFO *)gpsSGXDevNode->pvDevice)->pvRegsBaseKM, EUR_CR_EVENT_HOST_CLEAR);
++#endif	/* defined(NO_HARDWARE) */
++}
++
++#if defined(SGX_OCP_NO_INT_BYPASS)
++/*!
++******************************************************************************
++ @Function        SysEnableSGXInterrupts
++
++ @Description     Enables SGX interrupts
++
++ @Input           psSysData
++
++ @Return        IMG_VOID
++
++******************************************************************************/
++IMG_VOID SysEnableSGXInterrupts(SYS_DATA *psSysData)
++{
++	SYS_SPECIFIC_DATA *psSysSpecData = (SYS_SPECIFIC_DATA *)psSysData->pvSysSpecificData;
++	if (SYS_SPECIFIC_DATA_TEST(psSysSpecData, SYS_SPECIFIC_DATA_ENABLE_LISR) && !SYS_SPECIFIC_DATA_TEST(psSysSpecData, SYS_SPECIFIC_DATA_IRQ_ENABLED))
++	{
++		OSWriteHWReg(gpvOCPRegsLinAddr, EUR_CR_OCP_IRQSTATUS_2, 0x1);
++		OSWriteHWReg(gpvOCPRegsLinAddr, EUR_CR_OCP_IRQENABLE_SET_2, 0x1);
++		SYS_SPECIFIC_DATA_SET(psSysSpecData, SYS_SPECIFIC_DATA_IRQ_ENABLED);
++	}
++}
++
++/*!
++******************************************************************************
++ @Function        SysDisableSGXInterrupts
++
++ @Description     Disables SGX interrupts
++
++ @Input           psSysData
++
++ @Return        IMG_VOID
++
++******************************************************************************/
++IMG_VOID SysDisableSGXInterrupts(SYS_DATA *psSysData)
++{
++	SYS_SPECIFIC_DATA *psSysSpecData = (SYS_SPECIFIC_DATA *)psSysData->pvSysSpecificData;
++
++	if (SYS_SPECIFIC_DATA_TEST(psSysSpecData, SYS_SPECIFIC_DATA_IRQ_ENABLED))
++	{
++		OSWriteHWReg(gpvOCPRegsLinAddr, EUR_CR_OCP_IRQENABLE_CLR_2, 0x1);
++		SYS_SPECIFIC_DATA_CLEAR(psSysSpecData, SYS_SPECIFIC_DATA_IRQ_ENABLED);
++	}
++}
++#endif	/* defined(SGX_OCP_NO_INT_BYPASS) */
++
++/*!
++******************************************************************************
++
++ @Function	SysSystemPrePowerState
++
++ @Description	Perform system-level processing required before a power transition
++
++ @Input		eNewPowerState :
++
++ @Return	PVRSRV_ERROR
++
++******************************************************************************/
++PVRSRV_ERROR SysSystemPrePowerState(PVRSRV_SYS_POWER_STATE eNewPowerState)
++{
++	PVRSRV_ERROR eError = PVRSRV_OK;
++
++	if (eNewPowerState == PVRSRV_SYS_POWER_STATE_D3)
++	{
++		PVR_TRACE(("SysSystemPrePowerState: Entering state D3"));
++
++#if defined(SYS_USING_INTERRUPTS)
++		if (SYS_SPECIFIC_DATA_TEST(&gsSysSpecificData, SYS_SPECIFIC_DATA_ENABLE_LISR))
++		{
++#if defined(SYS_CUSTOM_POWERLOCK_WRAP)
++			IMG_BOOL bWrapped = WrapSystemPowerChange(&gsSysSpecificData);
++#endif
++			eError = OSUninstallDeviceLISR(gpsSysData);
++#if defined(SYS_CUSTOM_POWERLOCK_WRAP)
++			if (bWrapped)
++			{
++				UnwrapSystemPowerChange(&gsSysSpecificData);
++			}
++#endif
++			if (eError != PVRSRV_OK)
++			{
++				PVR_DPF((PVR_DBG_ERROR,"SysSystemPrePowerState: OSUninstallDeviceLISR failed (%d)", eError));
++				return eError;
++			}
++			SYS_SPECIFIC_DATA_SET(&gsSysSpecificData, SYS_SPECIFIC_DATA_PM_UNINSTALL_LISR);
++			SYS_SPECIFIC_DATA_CLEAR(&gsSysSpecificData, SYS_SPECIFIC_DATA_ENABLE_LISR);
++		}
++#endif
++
++		if (SYS_SPECIFIC_DATA_TEST(&gsSysSpecificData, SYS_SPECIFIC_DATA_ENABLE_SYSCLOCKS))
++		{
++			DisableSystemClocks(gpsSysData);
++
++			SYS_SPECIFIC_DATA_SET(&gsSysSpecificData, SYS_SPECIFIC_DATA_PM_DISABLE_SYSCLOCKS);
++			SYS_SPECIFIC_DATA_CLEAR(&gsSysSpecificData, SYS_SPECIFIC_DATA_ENABLE_SYSCLOCKS);
++		}
++	}
++
++	return eError;
++}
++
++
++/*!
++******************************************************************************
++
++ @Function	SysSystemPostPowerState
++
++ @Description	Perform system-level processing required after a power transition
++
++ @Input		eNewPowerState :
++
++ @Return	PVRSRV_ERROR
++
++******************************************************************************/
++PVRSRV_ERROR SysSystemPostPowerState(PVRSRV_SYS_POWER_STATE eNewPowerState)
++{
++	PVRSRV_ERROR eError = PVRSRV_OK;
++
++	if (eNewPowerState == PVRSRV_SYS_POWER_STATE_D0)
++	{
++		PVR_TRACE(("SysSystemPostPowerState: Entering state D0"));
++
++		if (SYS_SPECIFIC_DATA_TEST(&gsSysSpecificData, SYS_SPECIFIC_DATA_PM_DISABLE_SYSCLOCKS))
++		{
++			eError = EnableSystemClocksWrap(gpsSysData);
++			if (eError != PVRSRV_OK)
++			{
++				PVR_DPF((PVR_DBG_ERROR,"SysSystemPostPowerState: EnableSystemClocksWrap failed (%d)", eError));
++				return eError;
++			}
++			SYS_SPECIFIC_DATA_SET(&gsSysSpecificData, SYS_SPECIFIC_DATA_ENABLE_SYSCLOCKS);
++			SYS_SPECIFIC_DATA_CLEAR(&gsSysSpecificData, SYS_SPECIFIC_DATA_PM_DISABLE_SYSCLOCKS);
++		}
++
++#if defined(SYS_USING_INTERRUPTS)
++		if (SYS_SPECIFIC_DATA_TEST(&gsSysSpecificData, SYS_SPECIFIC_DATA_PM_UNINSTALL_LISR))
++		{
++#if defined(SYS_CUSTOM_POWERLOCK_WRAP)
++			IMG_BOOL bWrapped = WrapSystemPowerChange(&gsSysSpecificData);
++#endif
++
++			eError = OSInstallDeviceLISR(gpsSysData, gsSGXDeviceMap.ui32IRQ, "SGX ISR", gpsSGXDevNode);
++#if defined(SYS_CUSTOM_POWERLOCK_WRAP)
++			if (bWrapped)
++			{
++				UnwrapSystemPowerChange(&gsSysSpecificData);
++			}
++#endif
++			if (eError != PVRSRV_OK)
++			{
++				PVR_DPF((PVR_DBG_ERROR,"SysSystemPostPowerState: OSInstallDeviceLISR failed to install ISR (%d)", eError));
++				return eError;
++			}
++			SYS_SPECIFIC_DATA_SET(&gsSysSpecificData, SYS_SPECIFIC_DATA_ENABLE_LISR);
++			SYS_SPECIFIC_DATA_CLEAR(&gsSysSpecificData, SYS_SPECIFIC_DATA_PM_UNINSTALL_LISR);
++		}
++#endif
++	}
++	return eError;
++}
++
++
++/*!
++******************************************************************************
++
++ @Function	SysDevicePrePowerState
++
++ @Description	Perform system level processing required before a device power
++ 				transition
++
++ @Input		ui32DeviceIndex :
++ @Input		eNewPowerState :
++ @Input		eCurrentPowerState :
++
++ @Return	PVRSRV_ERROR
++
++******************************************************************************/
++PVRSRV_ERROR SysDevicePrePowerState(IMG_UINT32				ui32DeviceIndex,
++									PVRSRV_DEV_POWER_STATE	eNewPowerState,
++									PVRSRV_DEV_POWER_STATE	eCurrentPowerState)
++{
++	PVR_UNREFERENCED_PARAMETER(eCurrentPowerState);
++
++	if (ui32DeviceIndex != gui32SGXDeviceID)
++	{
++		return PVRSRV_OK;
++	}
++
++#if defined(SUPPORT_ACTIVE_POWER_MANAGEMENT)
++	if (eNewPowerState == PVRSRV_DEV_POWER_STATE_OFF)
++	{
++		PVR_DPF((PVR_DBG_MESSAGE, "SysDevicePrePowerState: SGX Entering state D3"));
++		DisableSGXClocks(gpsSysData);
++	}
++#else	/* SUPPORT_ACTIVE_POWER_MANAGEMENT */
++	PVR_UNREFERENCED_PARAMETER(eNewPowerState );
++#endif /* SUPPORT_ACTIVE_POWER_MANAGEMENT */
++	return PVRSRV_OK;
++}
++
++
++/*!
++******************************************************************************
++
++ @Function	SysDevicePostPowerState
++
++ @Description	Perform system level processing required after a device power
++ 				transition
++
++ @Input		ui32DeviceIndex :
++ @Input		eNewPowerState :
++ @Input		eCurrentPowerState :
++
++ @Return	PVRSRV_ERROR
++
++******************************************************************************/
++PVRSRV_ERROR SysDevicePostPowerState(IMG_UINT32				ui32DeviceIndex,
++									 PVRSRV_DEV_POWER_STATE	eNewPowerState,
++									 PVRSRV_DEV_POWER_STATE	eCurrentPowerState)
++{
++	PVRSRV_ERROR eError = PVRSRV_OK;
++
++	PVR_UNREFERENCED_PARAMETER(eNewPowerState);
++
++	if (ui32DeviceIndex != gui32SGXDeviceID)
++	{
++		return eError;
++	}
++
++#if defined(SUPPORT_ACTIVE_POWER_MANAGEMENT)
++	if (eCurrentPowerState == PVRSRV_DEV_POWER_STATE_OFF)
++	{
++		PVR_DPF((PVR_DBG_MESSAGE, "SysDevicePostPowerState: SGX Leaving state D3"));
++		eError = EnableSGXClocksWrap(gpsSysData);
++	}
++#else	/* SUPPORT_ACTIVE_POWER_MANAGEMENT */
++	PVR_UNREFERENCED_PARAMETER(eCurrentPowerState);
++#endif	/* SUPPORT_ACTIVE_POWER_MANAGEMENT */
++
++	return eError;
++}
++
++/*****************************************************************************
++ @Function        SysOEMFunction
++
++ @Description     marshalling function for custom OEM functions
++
++ @Input           ui32ID  - function ID
++ @Input           pvIn - in data
++ @Output          pvOut - out data
++
++ @Return        PVRSRV_ERROR
++*****************************************************************************/
++PVRSRV_ERROR SysOEMFunction (	IMG_UINT32	ui32ID,
++								IMG_VOID	*pvIn,
++								IMG_UINT32	ulInSize,
++								IMG_VOID	*pvOut,
++								IMG_UINT32	ulOutSize)
++{
++	PVR_UNREFERENCED_PARAMETER(ui32ID);
++	PVR_UNREFERENCED_PARAMETER(pvIn);
++	PVR_UNREFERENCED_PARAMETER(ulInSize);
++	PVR_UNREFERENCED_PARAMETER(pvOut);
++	PVR_UNREFERENCED_PARAMETER(ulOutSize);
++
++#if !defined(__QNXNTO__)
++	if ((ui32ID == OEM_GET_EXT_FUNCS) &&
++		(ulOutSize == sizeof(PVRSRV_DC_OEM_JTABLE)))
++	{
++		PVRSRV_DC_OEM_JTABLE *psOEMJTable = (PVRSRV_DC_OEM_JTABLE*) pvOut;
++		psOEMJTable->pfnOEMBridgeDispatch = &PVRSRV_BridgeDispatchKM;
++		return PVRSRV_OK;
++	}
++#endif
++
++	return PVRSRV_ERROR_INVALID_PARAMS;
++}
++/******************************************************************************
++ End of file (sysconfig.c)
++******************************************************************************/
+diff --git a/services4/system/sunxi/sysconfig.h b/services4/system/sunxi/sysconfig.h
+new file mode 100644
+index 0000000..aee01bd
+--- /dev/null
++++ b/services4/system/sunxi/sysconfig.h
+@@ -0,0 +1,117 @@
++/*************************************************************************/ /*!
++@Title          System Description Header
++@Copyright      Copyright (c) Imagination Technologies Ltd. All Rights Reserved
++@Description    This header provides system-specific declarations and macros
++@License        Dual MIT/GPLv2
++
++The contents of this file are subject to the MIT license as set out below.
++
++Permission is hereby granted, free of charge, to any person obtaining a copy
++of this software and associated documentation files (the "Software"), to deal
++in the Software without restriction, including without limitation the rights
++to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
++copies of the Software, and to permit persons to whom the Software is
++furnished to do so, subject to the following conditions:
++
++The above copyright notice and this permission notice shall be included in
++all copies or substantial portions of the Software.
++
++Alternatively, the contents of this file may be used under the terms of
++the GNU General Public License Version 2 ("GPL") in which case the provisions
++of GPL are applicable instead of those above.
++
++If you wish to allow use of your version of this file only under the terms of
++GPL, and not to allow others to use your version of this file under the terms
++of the MIT license, indicate your decision by deleting the provisions above
++and replace them with the notice and other provisions required by GPL as set
++out in the file called "GPL-COPYING" included in this distribution. If you do
++not delete the provisions above, a recipient may use your version of this file
++under the terms of either the MIT license or GPL.
++
++This License is also included in this distribution in the file called
++"MIT-COPYING".
++
++EXCEPT AS OTHERWISE STATED IN A NEGOTIATED AGREEMENT: (A) THE SOFTWARE IS
++PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING
++BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
++PURPOSE AND NONINFRINGEMENT; AND (B) IN NO EVENT SHALL THE AUTHORS OR
++COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
++IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
++CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
++*/ /**************************************************************************/
++
++#if !defined(__SOCCONFIG_H__)
++#define __SOCCONFIG_H__
++
++#define PVR_SYSTEM_SUNXI
++
++#if defined(__linux__)
++
++#if (SGXCORE == 544) && (SGX_CORE_REV == 117) // AM65xx
++
++/* Information not coming from DT files */
++#define SYS_SGX_PDS_TIMER_FREQ		(1000)	// 1ms (1000hz)
++#define SYS_SGX_HWRECOVERY_TIMEOUT_FREQ	(100)	// 10ms (100hz)
++#define SYS_SGX_CLOCK_SPEED		450000000
++
++#elif (SGXCORE == 530) && (SGX_CORE_REV == 125) // OMAP3630, AM335x, AM43xx
++
++/* Information not coming from DT files */
++#define SYS_SGX_PDS_TIMER_FREQ		(1000)	// 1ms (1000hz)
++#define SYS_SGX_HWRECOVERY_TIMEOUT_FREQ	(50)	// 20ms (50hz)
++#define SYS_SGX_CLOCK_SPEED		200000000
++
++/* Timer info for debug and timing builds
++ * AM335x uses GP7 TIMER
++ */
++#define SYS_OMAP_GPTIMER_ENABLE_SYS_PHYS_BASE	0x4804A038
++#define SYS_OMAP_GPTIMER_REGS_SYS_PHYS_BASE	0x4804A03C
++#define SYS_OMAP_GPTIMER_TSICR_SYS_PHYS_BASE	0x4804A054
++
++#elif (SGXCORE == 544) && defined(PVR_SYSTEM_SUNXI) // Allwinner A31/A31s: core clock from PLL9
++#define SYS_SGX_PDS_TIMER_FREQ		(1000)	// 1ms (1000hz)
++#define SYS_SGX_HWRECOVERY_TIMEOUT_FREQ	(100)	// 10ms (100hz)
++#define SYS_SGX_CLOCK_SPEED		300000000
++#elif (SGXCORE == 544) && (SGX_CORE_REV == 116) // AM57xx, DRA7x
++
++/* Information not coming from DT files */
++#define SYS_SGX_PDS_TIMER_FREQ      (1000)   // 1ms (1000hz)
++#define SYS_SGX_HWRECOVERY_TIMEOUT_FREQ   (100) // 10ms (100hz)
++
++#define SYS_SGX_CLOCK_SPEED      304742400
++
++/* Timer info for debug and timing builds
++ * DRA7 uses GP11 TIMER
++ */
++#define SYS_OMAP_GPTIMER_ENABLE_SYS_PHYS_BASE   0x48088038
++#define SYS_OMAP_GPTIMER_REGS_SYS_PHYS_BASE  0x4808803C
++#define SYS_OMAP_GPTIMER_TSICR_SYS_PHYS_BASE 0x48088054
++
++#elif (SGXCORE == 540) && (SGX_CORE_REV == 120) // OMAP44xx
++
++/* Information not coming from DT files */
++#define SYS_SGX_PDS_TIMER_FREQ 		(1000)	// 1ms (1000hz)
++#define SYS_SGX_HWRECOVERY_TIMEOUT_FREQ	(100)	// 10ms (100hz)
++
++#define SYS_SGX_CLOCK_SPEED		307200000
++
++/* Timer info for debug and timing builds
++ * DRA7 uses GP11 TIMER
++ */
++#define SYS_OMAP_GPTIMER_ENABLE_SYS_PHYS_BASE	0x48088038
++#define SYS_OMAP_GPTIMER_REGS_SYS_PHYS_BASE	0x4808803C
++#define SYS_OMAP_GPTIMER_TSICR_SYS_PHYS_BASE	0x48088054
++
++#endif
++
++/* Allow the AP latency to be overridden in the build config */
++#if !defined(SYS_SGX_ACTIVE_POWER_LATENCY_MS)
++#define SYS_SGX_ACTIVE_POWER_LATENCY_MS		(2)
++#endif
++
++/* Interrupt bits */
++#define DEVICE_SGX_INTERRUPT		(1<<0)
++
++#endif 	/* defined(__linux__) */
++
++#endif	/* __SYSCONFIG_H__ */
+diff --git a/services4/system/sunxi/sysinfo.h b/services4/system/sunxi/sysinfo.h
+new file mode 100644
+index 0000000..314e287
+--- /dev/null
++++ b/services4/system/sunxi/sysinfo.h
+@@ -0,0 +1,64 @@
++/*************************************************************************/ /*!
++@Title          System Description Header
++@Copyright      Copyright (c) Imagination Technologies Ltd. All Rights Reserved
++@Description    This header provides system-specific declarations and macros
++@License        Dual MIT/GPLv2
++
++The contents of this file are subject to the MIT license as set out below.
++
++Permission is hereby granted, free of charge, to any person obtaining a copy
++of this software and associated documentation files (the "Software"), to deal
++in the Software without restriction, including without limitation the rights
++to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
++copies of the Software, and to permit persons to whom the Software is
++furnished to do so, subject to the following conditions:
++
++The above copyright notice and this permission notice shall be included in
++all copies or substantial portions of the Software.
++
++Alternatively, the contents of this file may be used under the terms of
++the GNU General Public License Version 2 ("GPL") in which case the provisions
++of GPL are applicable instead of those above.
++
++If you wish to allow use of your version of this file only under the terms of
++GPL, and not to allow others to use your version of this file under the terms
++of the MIT license, indicate your decision by deleting the provisions above
++and replace them with the notice and other provisions required by GPL as set
++out in the file called "GPL-COPYING" included in this distribution. If you do
++not delete the provisions above, a recipient may use your version of this file
++under the terms of either the MIT license or GPL.
++
++This License is also included in this distribution in the file called
++"MIT-COPYING".
++
++EXCEPT AS OTHERWISE STATED IN A NEGOTIATED AGREEMENT: (A) THE SOFTWARE IS
++PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING
++BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
++PURPOSE AND NONINFRINGEMENT; AND (B) IN NO EVENT SHALL THE AUTHORS OR
++COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
++IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
++CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
++*/ /**************************************************************************/
++
++#if !defined(__SYSINFO_H__)
++#define __SYSINFO_H__
++
++/*!< System specific poll/timeout details */
++#if defined(PVR_LINUX_USING_WORKQUEUES)
++/*
++ * The workqueue based 3rd party display driver may be blocked for up
++ * to 500ms waiting for a vsync when the screen goes blank, so we
++ * need to wait longer for the hardware if a flush of the swap chain is
++ * required.
++ */
++#define MAX_HW_TIME_US				(1000000)
++#define WAIT_TRY_COUNT				(20000)
++#else
++#define MAX_HW_TIME_US				(2000000)
++#define WAIT_TRY_COUNT				(40000)
++#endif
++
++
++#define SYS_DEVICE_COUNT 15 /* SGX, DISPLAYCLASS (external), BUFFERCLASS (external) */
++
++#endif	/* __SYSINFO_H__ */
+diff --git a/services4/system/sunxi/syslocal.h b/services4/system/sunxi/syslocal.h
+new file mode 100644
+index 0000000..750ddd1
+--- /dev/null
++++ b/services4/system/sunxi/syslocal.h
+@@ -0,0 +1,252 @@
++/*************************************************************************/ /*!
++@Title          Local system definitions
++@Copyright      Copyright (c) Imagination Technologies Ltd. All Rights Reserved
++@Description    This header provides local system declarations and macros
++@License        Dual MIT/GPLv2
++
++The contents of this file are subject to the MIT license as set out below.
++
++Permission is hereby granted, free of charge, to any person obtaining a copy
++of this software and associated documentation files (the "Software"), to deal
++in the Software without restriction, including without limitation the rights
++to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
++copies of the Software, and to permit persons to whom the Software is
++furnished to do so, subject to the following conditions:
++
++The above copyright notice and this permission notice shall be included in
++all copies or substantial portions of the Software.
++
++Alternatively, the contents of this file may be used under the terms of
++the GNU General Public License Version 2 ("GPL") in which case the provisions
++of GPL are applicable instead of those above.
++
++If you wish to allow use of your version of this file only under the terms of
++GPL, and not to allow others to use your version of this file under the terms
++of the MIT license, indicate your decision by deleting the provisions above
++and replace them with the notice and other provisions required by GPL as set
++out in the file called "GPL-COPYING" included in this distribution. If you do
++not delete the provisions above, a recipient may use your version of this file
++under the terms of either the MIT license or GPL.
++
++This License is also included in this distribution in the file called
++"MIT-COPYING".
++
++EXCEPT AS OTHERWISE STATED IN A NEGOTIATED AGREEMENT: (A) THE SOFTWARE IS
++PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING
++BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
++PURPOSE AND NONINFRINGEMENT; AND (B) IN NO EVENT SHALL THE AUTHORS OR
++COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
++IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
++CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
++*/ /**************************************************************************/
++
++#if !defined(__SYSLOCAL_H__)
++#define __SYSLOCAL_H__
++
++#if defined(__linux__)
++
++#include <linux/version.h>
++#include <linux/clk.h>
++#if defined(PVR_LINUX_USING_WORKQUEUES)
++#include <linux/mutex.h>
++#else
++#include <linux/spinlock.h>
++#endif
++#include <asm/atomic.h>
++
++#include <linux/semaphore.h>
++#include <linux/resource.h>
++
++#if !defined(LDM_PLATFORM)
++#error "LDM_PLATFORM must be set"
++#endif
++#define	PVR_LINUX_DYNAMIC_SGX_RESOURCE_INFO
++#include <linux/platform_device.h>
++
++#if ((defined(DEBUG) || defined(TIMING)) && \
++    (LINUX_VERSION_CODE == KERNEL_VERSION(2,6,34))) && \
++    !defined(PVR_NO_OMAP_TIMER)
++/*
++ * We need to explicitly enable the GPTIMER11 clocks, or we'll get an
++ * abort when we try to access the timer registers.
++ */
++#define	PVR_OMAP4_TIMING_PRCM
++#endif
++
++#if !defined(PVR_NO_OMAP_TIMER)
++#define	PVR_OMAP_USE_DM_TIMER_API
++#include <plat/dmtimer.h>
++#endif
++
++#if !defined(PVR_NO_OMAP_TIMER)
++#define PVR_OMAP_TIMER_BASE_IN_SYS_SPEC_DATA
++#endif
++#endif /* defined(__linux__) */
++
++/*
++ * No TI OCP wrapper on Allwinner: its registers (0xFE00..) would land in the
++ * SGX core 1 bank, and stray accesses there hang the A31 bus.
++ */
++
++#if defined(__linux__)
++#if defined(SGX_OCP_REGS_ENABLED)
++/* FIXME: Temporary workaround for OMAP4470 and active power off in 4430 */
++#if !defined(SGX544) && defined(SUPPORT_ACTIVE_POWER_MANAGEMENT)
++#define SGX_OCP_NO_INT_BYPASS
++#endif
++#endif
++#endif
++
++#if defined (__cplusplus)
++extern "C" {
++#endif
++
++/*****************************************************************************
++ * system specific data structures
++ *****************************************************************************/
++ 
++/*****************************************************************************
++ * system specific function prototypes
++ *****************************************************************************/
++ 
++IMG_VOID DisableSystemClocks(SYS_DATA *psSysData);
++PVRSRV_ERROR EnableSystemClocks(SYS_DATA *psSysData);
++
++IMG_VOID DisableSGXClocks(SYS_DATA *psSysData);
++PVRSRV_ERROR EnableSGXClocks(SYS_DATA *psSysData);
++
++/*
++ * Various flags to indicate what has been initialised, and what
++ * has been temporarily deinitialised for power management purposes.
++ */
++#define SYS_SPECIFIC_DATA_ENABLE_SYSCLOCKS	0x00000001
++#define SYS_SPECIFIC_DATA_ENABLE_LISR		0x00000002
++#define SYS_SPECIFIC_DATA_ENABLE_MISR		0x00000004
++#define SYS_SPECIFIC_DATA_ENABLE_ENVDATA	0x00000008
++#define SYS_SPECIFIC_DATA_ENABLE_LOCDEV		0x00000010
++#define SYS_SPECIFIC_DATA_ENABLE_REGDEV		0x00000020
++#define SYS_SPECIFIC_DATA_ENABLE_PDUMPINIT	0x00000040
++#define SYS_SPECIFIC_DATA_ENABLE_INITDEV	0x00000080
++#define SYS_SPECIFIC_DATA_ENABLE_LOCATEDEV	0x00000100
++
++#define	SYS_SPECIFIC_DATA_PM_UNINSTALL_LISR	0x00000200
++#define	SYS_SPECIFIC_DATA_PM_DISABLE_SYSCLOCKS	0x00000400
++#define SYS_SPECIFIC_DATA_ENABLE_OCPREGS	0x00000800
++#define SYS_SPECIFIC_DATA_ENABLE_PM_RUNTIME	0x00001000
++#define SYS_SPECIFIC_DATA_IRQ_ENABLED		0x00002000
++#define SYS_SPECIFIC_DATA_DVFS_INIT			0x00004000
++
++#define	SYS_SPECIFIC_DATA_SET(psSysSpecData, flag) ((IMG_VOID)((psSysSpecData)->ui32SysSpecificData |= (flag)))
++
++#define	SYS_SPECIFIC_DATA_CLEAR(psSysSpecData, flag) ((IMG_VOID)((psSysSpecData)->ui32SysSpecificData &= ~(flag)))
++
++#define	SYS_SPECIFIC_DATA_TEST(psSysSpecData, flag) (((psSysSpecData)->ui32SysSpecificData & (flag)) != 0)
++ 
++typedef struct _SYS_SPECIFIC_DATA_TAG_
++{
++	IMG_UINT32	ui32SysSpecificData;
++	PVRSRV_DEVICE_NODE *psSGXDevNode;
++	IMG_BOOL	bSGXInitComplete;
++#if defined(PVR_OMAP_TIMER_BASE_IN_SYS_SPEC_DATA)
++	IMG_CPU_PHYADDR	sTimerRegPhysBase;
++#endif
++#if !defined(__linux__)
++	IMG_BOOL	bSGXClocksEnabled;
++#endif
++	IMG_UINT32	ui32SrcClockDiv;
++#if defined(__linux__)
++	IMG_BOOL	bSysClocksOneTimeInit;
++	atomic_t	sSGXClocksEnabled;
++#if defined(PVR_LINUX_USING_WORKQUEUES)
++	struct mutex	sPowerLock;
++#else
++	IMG_BOOL	bConstraintNotificationsEnabled;
++	spinlock_t	sPowerLock;
++	atomic_t	sPowerLockCPU;
++	spinlock_t	sNotifyLock;
++	atomic_t	sNotifyLockCPU;
++	IMG_BOOL	bCallVDD2PostFunc;
++#endif
++	/* sunxi power-up state (sysutils_linux.c) */
++	void __iomem	*pvSunxiCCU;
++	void __iomem	*pvSunxiPRCM;
++	struct regulator *psSunxiVdd;
++	IMG_BOOL	bSunxiPowered;
++#if defined(DEBUG) || defined(TIMING)
++	struct clk	*psGPT11_FCK;
++	struct clk	*psGPT11_ICK;
++#endif
++#if defined(PVR_OMAP_USE_DM_TIMER_API)
++	struct omap_dm_timer *psGPTimer;
++#endif
++#endif	/* defined(__linux__) */
++} SYS_SPECIFIC_DATA;
++
++extern SYS_SPECIFIC_DATA *gpsSysSpecificData;
++
++#if defined(SGX_OCP_REGS_ENABLED) && defined(SGX_OCP_NO_INT_BYPASS)
++IMG_VOID SysEnableSGXInterrupts(SYS_DATA* psSysData);
++IMG_VOID SysDisableSGXInterrupts(SYS_DATA* psSysData);
++#else
++#define	SysEnableSGXInterrupts(psSysData)
++#define SysDisableSGXInterrupts(psSysData)
++#endif
++
++#if defined(SYS_CUSTOM_POWERLOCK_WRAP)
++IMG_BOOL WrapSystemPowerChange(SYS_SPECIFIC_DATA *psSysSpecData);
++IMG_VOID UnwrapSystemPowerChange(SYS_SPECIFIC_DATA *psSysSpecData);
++#endif
++
++#if defined(__linux__)
++
++PVRSRV_ERROR SysPMRuntimeRegister(void);
++PVRSRV_ERROR SysPMRuntimeUnregister(void);
++
++PVRSRV_ERROR SysDvfsInitialize(SYS_SPECIFIC_DATA *psSysSpecificData);
++PVRSRV_ERROR SysDvfsDeinitialize(SYS_SPECIFIC_DATA *psSysSpecificData);
++
++#else /* defined(__linux__) */
++
++#ifdef INLINE_IS_PRAGMA
++#pragma inline(SysPMRuntimeRegister)
++#endif
++static INLINE PVRSRV_ERROR SysPMRuntimeRegister(void)
++{
++	return PVRSRV_OK;
++}
++
++#ifdef INLINE_IS_PRAGMA
++#pragma inline(SysPMRuntimeUnregister)
++#endif
++static INLINE PVRSRV_ERROR SysPMRuntimeUnregister(void)
++{
++	return PVRSRV_OK;
++}
++
++#ifdef INLINE_IS_PRAGMA
++#pragma inline(SysDvfsInitialize)
++#endif
++static INLINE PVRSRV_ERROR SysDvfsInitialize(SYS_SPECIFIC_DATA *psSysSpecificData)
++{
++	PVR_UNREFERENCED_PARAMETER(psSysSpecificData);
++	return PVRSRV_OK;
++}
++
++#ifdef INLINE_IS_PRAGMA
++#pragma inline(SysDvfsDeinitialize)
++#endif
++static INLINE PVRSRV_ERROR SysDvfsDeinitialize(SYS_SPECIFIC_DATA *psSysSpecificData)
++{
++	PVR_UNREFERENCED_PARAMETER(psSysSpecificData);
++	return PVRSRV_OK;
++}
++
++#endif /* defined(__linux__) */
++
++#if defined(__cplusplus)
++}
++#endif
++
++#endif	/* __SYSLOCAL_H__ */
++
++
+diff --git a/services4/system/sunxi/sysutils.c b/services4/system/sunxi/sysutils.c
+new file mode 100644
+index 0000000..b1ea055
+--- /dev/null
++++ b/services4/system/sunxi/sysutils.c
+@@ -0,0 +1,63 @@
++/*************************************************************************/ /*!
++@Title          Shared (User/kernel) and System dependent utilities
++@Copyright      Copyright (c) Imagination Technologies Ltd. All Rights Reserved
++@Description    Provides system-specific functions
++@License        Dual MIT/GPLv2
++
++The contents of this file are subject to the MIT license as set out below.
++
++Permission is hereby granted, free of charge, to any person obtaining a copy
++of this software and associated documentation files (the "Software"), to deal
++in the Software without restriction, including without limitation the rights
++to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
++copies of the Software, and to permit persons to whom the Software is
++furnished to do so, subject to the following conditions:
++
++The above copyright notice and this permission notice shall be included in
++all copies or substantial portions of the Software.
++
++Alternatively, the contents of this file may be used under the terms of
++the GNU General Public License Version 2 ("GPL") in which case the provisions
++of GPL are applicable instead of those above.
++
++If you wish to allow use of your version of this file only under the terms of
++GPL, and not to allow others to use your version of this file under the terms
++of the MIT license, indicate your decision by deleting the provisions above
++and replace them with the notice and other provisions required by GPL as set
++out in the file called "GPL-COPYING" included in this distribution. If you do
++not delete the provisions above, a recipient may use your version of this file
++under the terms of either the MIT license or GPL.
++
++This License is also included in this distribution in the file called
++"MIT-COPYING".
++
++EXCEPT AS OTHERWISE STATED IN A NEGOTIATED AGREEMENT: (A) THE SOFTWARE IS
++PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING
++BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
++PURPOSE AND NONINFRINGEMENT; AND (B) IN NO EVENT SHALL THE AUTHORS OR
++COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
++IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
++CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
++*/ /**************************************************************************/
++
++/* Pull in the correct system dependent sysutils source */
++
++#if defined(__linux__)
++#include "sysutils_linux.c"
++#if defined(SYS_OMAP_HAS_DVFS_FRAMEWORK)
++#include "sgxfreq.c"
++#include "sgxfreq_onoff.c"
++#include "sgxfreq_activeidle.c"
++#include "sgxfreq_on3demand.c"
++#include "sgxfreq_userspace.c"
++#if (defined(CONFIG_THERMAL) || defined(CONFIG_THERMAL_FRAMEWORK))
++#include "sgxfreq_cool.c"
++#endif
++#endif
++#endif
++
++
++
++#if defined(__QNXNTO__) 
++#include "sysutils_nto.c"
++#endif
+diff --git a/services4/system/sunxi/sysutils_linux.c b/services4/system/sunxi/sysutils_linux.c
+new file mode 100644
+index 0000000..95e80df
+--- /dev/null
++++ b/services4/system/sunxi/sysutils_linux.c
+@@ -0,0 +1,826 @@
++/*************************************************************************/ /*!
++@Title          System dependent utilities
++@Copyright      Copyright (c) Imagination Technologies Ltd. All Rights Reserved
++@Description    Provides system-specific functions
++@License        Dual MIT/GPLv2
++
++The contents of this file are subject to the MIT license as set out below.
++
++Permission is hereby granted, free of charge, to any person obtaining a copy
++of this software and associated documentation files (the "Software"), to deal
++in the Software without restriction, including without limitation the rights
++to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
++copies of the Software, and to permit persons to whom the Software is
++furnished to do so, subject to the following conditions:
++
++The above copyright notice and this permission notice shall be included in
++all copies or substantial portions of the Software.
++
++Alternatively, the contents of this file may be used under the terms of
++the GNU General Public License Version 2 ("GPL") in which case the provisions
++of GPL are applicable instead of those above.
++
++If you wish to allow use of your version of this file only under the terms of
++GPL, and not to allow others to use your version of this file under the terms
++of the MIT license, indicate your decision by deleting the provisions above
++and replace them with the notice and other provisions required by GPL as set
++out in the file called "GPL-COPYING" included in this distribution. If you do
++not delete the provisions above, a recipient may use your version of this file
++under the terms of either the MIT license or GPL.
++
++This License is also included in this distribution in the file called
++"MIT-COPYING".
++
++EXCEPT AS OTHERWISE STATED IN A NEGOTIATED AGREEMENT: (A) THE SOFTWARE IS
++PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING
++BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
++PURPOSE AND NONINFRINGEMENT; AND (B) IN NO EVENT SHALL THE AUTHORS OR
++COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
++IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
++CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
++*/ /**************************************************************************/
++#include <linux/version.h>
++#include <linux/clk.h>
++#include <linux/err.h>
++#include <linux/hardirq.h>
++#include <linux/mutex.h>
++#include <linux/slab.h>
++#include <linux/delay.h>
++#include <linux/io.h>
++#include <linux/iopoll.h>
++#include <linux/regulator/consumer.h>
++
++#include "sgxdefs.h"
++#include "services_headers.h"
++#include "sysinfo.h"
++#include "sgxapi_km.h"
++#include "sysconfig.h"
++#include "sgxinfokm.h"
++#include "syslocal.h"
++
++#include <linux/platform_device.h>
++#include <linux/pm_runtime.h>
++
++#if defined(SYS_OMAP_HAS_DVFS_FRAMEWORK)
++#include "sgxfreq.h"
++#endif
++
++#if defined(SUPPORT_DRI_DRM_PLUGIN)
++#include <drm/drmP.h>
++#include <drm/drm.h>
++
++#include <linux/omap_gpu.h>
++
++#include "pvr_drm.h"
++#endif
++
++#define	ONE_MHZ	1000000
++#define	HZ_TO_MHZ(m) ((m) / ONE_MHZ)
++
++#if defined(SUPPORT_OMAP3430_SGXFCLK_96M)
++#define SGX_PARENT_CLOCK "cm_96m_fck"
++#else
++#define SGX_PARENT_CLOCK "core_ck"
++#endif
++
++#if defined(LDM_PLATFORM) && !defined(PVR_DRI_DRM_NOT_PCI)
++extern struct platform_device *gpsPVRLDMDev;
++#endif
++
++static PVRSRV_ERROR PowerLockWrap(SYS_SPECIFIC_DATA *psSysSpecData, IMG_BOOL bTryLock)
++{
++	if (!in_interrupt())
++	{
++		if (bTryLock)
++		{
++			int locked = mutex_trylock(&psSysSpecData->sPowerLock);
++			if (locked == 0)
++			{
++				return PVRSRV_ERROR_RETRY;
++			}
++		}
++		else
++		{
++			mutex_lock(&psSysSpecData->sPowerLock);
++		}
++	}
++
++	return PVRSRV_OK;
++}
++
++static IMG_VOID PowerLockUnwrap(SYS_SPECIFIC_DATA *psSysSpecData)
++{
++	if (!in_interrupt())
++	{
++		mutex_unlock(&psSysSpecData->sPowerLock);
++	}
++}
++
++PVRSRV_ERROR SysPowerLockWrap(IMG_BOOL bTryLock)
++{
++	SYS_DATA	*psSysData;
++
++	SysAcquireData(&psSysData);
++
++	return PowerLockWrap(psSysData->pvSysSpecificData, bTryLock);
++}
++
++IMG_VOID SysPowerLockUnwrap(IMG_VOID)
++{
++	SYS_DATA	*psSysData;
++
++	SysAcquireData(&psSysData);
++
++	PowerLockUnwrap(psSysData->pvSysSpecificData);
++}
++
++/*
++ * This function should be called to unwrap the Services power lock, prior
++ * to calling any function that might sleep.
++ * This function shouldn't be called prior to calling EnableSystemClocks
++ * or DisableSystemClocks, as those functions perform their own power lock
++ * unwrapping.
++ * If the function returns IMG_TRUE, UnwrapSystemPowerChange must be
++ * called to rewrap the power lock, prior to returning to Services.
++ */
++IMG_BOOL WrapSystemPowerChange(SYS_SPECIFIC_DATA *psSysSpecData)
++{
++	return IMG_TRUE;
++}
++
++IMG_VOID UnwrapSystemPowerChange(SYS_SPECIFIC_DATA *psSysSpecData)
++{
++}
++
++/*
++ * Return SGX timining information to caller.
++ */
++IMG_VOID SysGetSGXTimingInformation(SGX_TIMING_INFORMATION *psTimingInfo)
++{
++#if !defined(NO_HARDWARE)
++	PVR_ASSERT(atomic_read(&gpsSysSpecificData->sSGXClocksEnabled) != 0);
++#endif
++#if defined(SYS_OMAP_HAS_DVFS_FRAMEWORK)
++	/*
++	 * The core SGX driver and ukernel code expects SGX frequency
++	 * changes to occur only just prior to SGX initialization. We
++	 * don't wish to constrain the DVFS implementation as such. So
++	 * we let these components believe that frequency setting is
++	 * always at maximum. This produces safe values for derived
++	 * parameters such as APM and HWR timeouts.
++	 */
++	psTimingInfo->ui32CoreClockSpeed = (IMG_UINT32)sgxfreq_get_freq_max();
++#else /* defined(SYS_OMAP_HAS_DVFS_FRAMEWORK) */
++	psTimingInfo->ui32CoreClockSpeed = SYS_SGX_CLOCK_SPEED;
++#endif
++	psTimingInfo->ui32HWRecoveryFreq = SYS_SGX_HWRECOVERY_TIMEOUT_FREQ;
++	psTimingInfo->ui32uKernelFreq = SYS_SGX_PDS_TIMER_FREQ;
++#if defined(SUPPORT_ACTIVE_POWER_MANAGEMENT)
++	psTimingInfo->bEnableActivePM = IMG_TRUE;
++#else
++	psTimingInfo->bEnableActivePM = IMG_FALSE;
++#endif /* SUPPORT_ACTIVE_POWER_MANAGEMENT */
++	psTimingInfo->ui32ActivePowManLatencyms = SYS_SGX_ACTIVE_POWER_LATENCY_MS;
++}
++
++/*!
++******************************************************************************
++
++ @Function  EnableSGXClocks
++
++ @Description Enable SGX clocks
++
++ @Return   PVRSRV_ERROR
++
++******************************************************************************/
++PVRSRV_ERROR EnableSGXClocks(SYS_DATA *psSysData)
++{
++#if !defined(NO_HARDWARE)
++	SYS_SPECIFIC_DATA *psSysSpecData = (SYS_SPECIFIC_DATA *) psSysData->pvSysSpecificData;
++
++	/* SGX clocks already enabled? */
++	if (atomic_read(&psSysSpecData->sSGXClocksEnabled) != 0)
++	{
++		return PVRSRV_OK;
++	}
++
++	PVR_DPF((PVR_DBG_MESSAGE, "EnableSGXClocks: Enabling SGX Clocks"));
++
++#if defined(LDM_PLATFORM) && !defined(PVR_DRI_DRM_NOT_PCI)
++	/* sunxi: the GPU is powered once in EnableSystemClocks and stays on */
++#if defined(SYS_OMAP_HAS_DVFS_FRAMEWORK)
++	sgxfreq_notif_sgx_clk_on();
++#endif /* defined(SYS_OMAP_HAS_DVFS_FRAMEWORK) */
++#endif /* defined(LDM_PLATFORM) && !defined(PVR_DRI_DRM_NOT_PCI) */
++
++	SysEnableSGXInterrupts(psSysData);
++
++	/* Indicate that the SGX clocks are enabled */
++	atomic_set(&psSysSpecData->sSGXClocksEnabled, 1);
++
++#else	/* !defined(NO_HARDWARE) */
++	PVR_UNREFERENCED_PARAMETER(psSysData);
++#endif	/* !defined(NO_HARDWARE) */
++	return PVRSRV_OK;
++}
++
++
++/*!
++******************************************************************************
++
++ @Function  DisableSGXClocks
++
++ @Description Disable SGX clocks.
++
++ @Return   none
++
++******************************************************************************/
++IMG_VOID DisableSGXClocks(SYS_DATA *psSysData)
++{
++#if !defined(NO_HARDWARE)
++	SYS_SPECIFIC_DATA *psSysSpecData = (SYS_SPECIFIC_DATA *) psSysData->pvSysSpecificData;
++
++	/* SGX clocks already disabled? */
++	if (atomic_read(&psSysSpecData->sSGXClocksEnabled) == 0)
++	{
++		return;
++	}
++
++	PVR_DPF((PVR_DBG_MESSAGE, "DisableSGXClocks: Disabling SGX Clocks"));
++
++	SysDisableSGXInterrupts(psSysData);
++
++#if defined(LDM_PLATFORM) && !defined(PVR_DRI_DRM_NOT_PCI)
++	/* sunxi: powered off in DisableSystemClocks */
++#if defined(SYS_OMAP_HAS_DVFS_FRAMEWORK)
++	sgxfreq_notif_sgx_clk_off();
++#endif /* defined(SYS_OMAP_HAS_DVFS_FRAMEWORK) */
++#endif /* defined(LDM_PLATFORM) && !defined(PVR_DRI_DRM_NOT_PCI) */
++
++	/* Indicate that the SGX clocks are disabled */
++	atomic_set(&psSysSpecData->sSGXClocksEnabled, 0);
++
++#else	/* !defined(NO_HARDWARE) */
++	PVR_UNREFERENCED_PARAMETER(psSysData);
++#endif	/* !defined(NO_HARDWARE) */
++}
++
++#if (defined(DEBUG) || defined(TIMING)) && !defined(PVR_NO_OMAP_TIMER)
++#if defined(PVR_OMAP_USE_DM_TIMER_API)
++#define	GPTIMER_TO_USE 11
++/*!
++******************************************************************************
++
++ @Function  AcquireGPTimer
++
++ @Description Acquire a GP timer
++
++ @Return   PVRSRV_ERROR
++
++******************************************************************************/
++static PVRSRV_ERROR AcquireGPTimer(SYS_SPECIFIC_DATA *psSysSpecData)
++{
++	PVR_ASSERT(psSysSpecData->psGPTimer == NULL);
++
++	/*
++	 * This code has problems on module reload for OMAP5 running Linux
++	 * 3.4.10, due to omap2_dm_timer_set_src (called by
++	 * omap_dm_timer_request_specific), being unable to set the parent
++	 * clock to OMAP_TIMER_SRC_32_KHZ.
++	 * Not calling omap_dm_timer_set_source doesn't help.
++	 */
++#if !defined(MODULE)
++	/*
++	 * This code could try requesting registers 9, 10, and 11,
++	 * stopping at the first succesful request.  We'll stick with
++	 * 11 for now, as it avoids having to hard code yet more
++	 * physical addresses into the code.
++	 */
++	psSysSpecData->psGPTimer = omap_dm_timer_request_specific(GPTIMER_TO_USE);
++	if (psSysSpecData->psGPTimer == NULL)
++	{
++	
++		PVR_DPF((PVR_DBG_WARNING, "%s: omap_dm_timer_request_specific failed", __FUNCTION__));
++		return PVRSRV_ERROR_CLOCK_REQUEST_FAILED;
++	}
++
++	omap_dm_timer_set_source(psSysSpecData->psGPTimer, OMAP_TIMER_SRC_SYS_CLK);
++	omap_dm_timer_enable(psSysSpecData->psGPTimer);
++
++	/* Set autoreload, and start value of 0 */
++	omap_dm_timer_set_load_start(psSysSpecData->psGPTimer, 1, 0);
++
++	omap_dm_timer_start(psSysSpecData->psGPTimer);
++
++	/*
++	 * The DM timer API doesn't have a mechanism for obtaining the
++	 * physical address of the counter register.
++	 */
++	psSysSpecData->sTimerRegPhysBase.uiAddr = SYS_OMAP_GPTIMER_REGS_SYS_PHYS_BASE;
++#else	/* !defined(MODULE) */
++	(void)psSysSpecData;
++#endif	/* !defined(MODULE) */
++
++	return PVRSRV_OK;
++}
++
++/*!
++******************************************************************************
++
++ @Function  ReleaseGPTimer
++
++ @Description Release a GP timer
++
++ @Return   PVRSRV_ERROR
++
++******************************************************************************/
++static void ReleaseGPTimer(SYS_SPECIFIC_DATA *psSysSpecData)
++{
++	if (psSysSpecData->psGPTimer != NULL)
++	{
++		/* Always returns 0 */	
++		(void) omap_dm_timer_stop(psSysSpecData->psGPTimer);
++
++		omap_dm_timer_disable(psSysSpecData->psGPTimer);
++
++		omap_dm_timer_free(psSysSpecData->psGPTimer);
++
++		psSysSpecData->sTimerRegPhysBase.uiAddr = 0;
++
++		psSysSpecData->psGPTimer = NULL;
++	}
++
++}
++#else	/* PVR_OMAP_USE_DM_TIMER_API */
++/*!
++******************************************************************************
++
++ @Function  AcquireGPTimer
++
++ @Description Acquire a GP timer
++
++ @Return   PVRSRV_ERROR
++
++******************************************************************************/
++static PVRSRV_ERROR AcquireGPTimer(SYS_SPECIFIC_DATA *psSysSpecData)
++{
++#if defined(PVR_OMAP4_TIMING_PRCM)
++	struct clk *psCLK;
++	IMG_INT res;
++	struct clk *sys_ck;
++	IMG_INT rate;
++#endif
++	PVRSRV_ERROR eError;
++
++	IMG_CPU_PHYADDR sTimerRegPhysBase;
++	IMG_HANDLE hTimerEnable;
++	IMG_UINT32 *pui32TimerEnable;
++#if defined(PVR_OMAP_TIMER_BASE_IN_SYS_SPEC_DATA)
++	PVR_ASSERT(psSysSpecData->sTimerRegPhysBase.uiAddr == 0);
++#endif
++
++#if defined(PVR_OMAP4_TIMING_PRCM)
++	/* assert our dependence on the GPTIMER11 module */
++	psCLK = clk_get(NULL, "gpt11_fck");
++	if (IS_ERR(psCLK))
++	{
++		PVR_DPF((PVR_DBG_ERROR, "EnableSystemClocks: Couldn't get GPTIMER11 functional clock"));
++		goto ExitError;
++	}
++	psSysSpecData->psGPT11_FCK = psCLK;
++
++	psCLK = clk_get(NULL, "gpt11_ick");
++	if (IS_ERR(psCLK))
++	{
++		PVR_DPF((PVR_DBG_ERROR, "EnableSystemClocks: Couldn't get GPTIMER11 interface clock"));
++		goto ExitError;
++	}
++	psSysSpecData->psGPT11_ICK = psCLK;
++
++	sys_ck = clk_get(NULL, "sys_clkin_ck");
++	if (IS_ERR(sys_ck))
++	{
++		PVR_DPF((PVR_DBG_ERROR, "EnableSystemClocks: Couldn't get System clock"));
++		goto ExitError;
++	}
++
++	if(clk_get_parent(psSysSpecData->psGPT11_FCK) != sys_ck)
++	{
++		PVR_TRACE(("Setting GPTIMER11 parent to System Clock"));
++		res = clk_set_parent(psSysSpecData->psGPT11_FCK, sys_ck);
++		if (res < 0)
++		{
++			PVR_DPF((PVR_DBG_ERROR, "EnableSystemClocks: Couldn't set GPTIMER11 parent clock (%d)", res));
++		goto ExitError;
++		}
++	}
++
++	rate = clk_get_rate(psSysSpecData->psGPT11_FCK);
++	PVR_TRACE(("GPTIMER11 clock is %dMHz", HZ_TO_MHZ(rate)));
++
++	res = clk_enable(psSysSpecData->psGPT11_FCK);
++	if (res < 0)
++	{
++		PVR_DPF((PVR_DBG_ERROR, "EnableSystemClocks: Couldn't enable GPTIMER11 functional clock (%d)", res));
++		goto ExitError;
++	}
++
++	res = clk_enable(psSysSpecData->psGPT11_ICK);
++	if (res < 0)
++	{
++		PVR_DPF((PVR_DBG_ERROR, "EnableSystemClocks: Couldn't enable GPTIMER11 interface clock (%d)", res));
++		goto ExitDisableGPT11FCK;
++	}
++#endif	/* defined(PVR_OMAP4_TIMING_PRCM) */
++
++	/* Set the timer to non-posted mode */
++	sTimerRegPhysBase.uiAddr = SYS_OMAP_GPTIMER_TSICR_SYS_PHYS_BASE;
++	pui32TimerEnable = OSMapPhysToLin(sTimerRegPhysBase,
++                  4,
++                  PVRSRV_HAP_KERNEL_ONLY|PVRSRV_HAP_UNCACHED,
++                  &hTimerEnable);
++
++	if (pui32TimerEnable == IMG_NULL)
++	{
++		PVR_DPF((PVR_DBG_ERROR, "EnableSystemClocks: OSMapPhysToLin failed"));
++		goto ExitDisableGPT11ICK;
++	}
++
++	if(!(*pui32TimerEnable & 4))
++	{
++		PVR_TRACE(("Setting GPTIMER11 mode to posted (currently is non-posted)"));
++
++		/* Set posted mode */
++		*pui32TimerEnable |= 4;
++	}
++
++	OSUnMapPhysToLin(pui32TimerEnable,
++		    4,
++		    PVRSRV_HAP_KERNEL_ONLY|PVRSRV_HAP_UNCACHED,
++		    hTimerEnable);
++
++	/* Enable the timer */
++	sTimerRegPhysBase.uiAddr = SYS_OMAP_GPTIMER_ENABLE_SYS_PHYS_BASE;
++	pui32TimerEnable = OSMapPhysToLin(sTimerRegPhysBase,
++                  4,
++                  PVRSRV_HAP_KERNEL_ONLY|PVRSRV_HAP_UNCACHED,
++                  &hTimerEnable);
++
++	if (pui32TimerEnable == IMG_NULL)
++	{
++		PVR_DPF((PVR_DBG_ERROR, "EnableSystemClocks: OSMapPhysToLin failed"));
++		goto ExitDisableGPT11ICK;
++	}
++
++	/* Enable and set autoreload on overflow */
++	*pui32TimerEnable = 3;
++
++	OSUnMapPhysToLin(pui32TimerEnable,
++		    4,
++		    PVRSRV_HAP_KERNEL_ONLY|PVRSRV_HAP_UNCACHED,
++		    hTimerEnable);
++#if defined(PVR_OMAP_TIMER_BASE_IN_SYS_SPEC_DATA)
++	psSysSpecData->sTimerRegPhysBase = sTimerRegPhysBase;
++#endif
++	eError = PVRSRV_OK;
++
++	goto Exit;
++
++ExitDisableGPT11ICK:
++#if defined(PVR_OMAP4_TIMING_PRCM)
++	clk_disable(psSysSpecData->psGPT11_ICK);
++ExitDisableGPT11FCK:
++	clk_disable(psSysSpecData->psGPT11_FCK);
++ExitError:
++#endif	/* defined(PVR_OMAP4_TIMING_PRCM) */
++	eError = PVRSRV_ERROR_CLOCK_REQUEST_FAILED;
++Exit:
++	return eError;
++}
++
++/*!
++******************************************************************************
++
++ @Function  ReleaseGPTimer
++
++ @Description Release a GP timer
++
++ @Return   PVRSRV_ERROR
++
++******************************************************************************/
++static void ReleaseGPTimer(SYS_SPECIFIC_DATA *psSysSpecData)
++{
++	IMG_HANDLE hTimerDisable;
++	IMG_UINT32 *pui32TimerDisable;
++
++#if defined(PVR_OMAP_TIMER_BASE_IN_SYS_SPEC_DATA)
++	if (psSysSpecData->sTimerRegPhysBase.uiAddr == 0)
++	{
++		return;
++	}
++#endif
++	/* Disable the timer */
++	pui32TimerDisable = OSMapPhysToLin(psSysSpecData->sTimerRegPhysBase,
++				4,
++				PVRSRV_HAP_KERNEL_ONLY|PVRSRV_HAP_UNCACHED,
++				&hTimerDisable);
++
++	if (pui32TimerDisable == IMG_NULL)
++	{
++		PVR_DPF((PVR_DBG_ERROR, "DisableSystemClocks: OSMapPhysToLin failed"));
++	}
++	else
++	{
++		*pui32TimerDisable = 0;
++
++		OSUnMapPhysToLin(pui32TimerDisable,
++				4,
++				PVRSRV_HAP_KERNEL_ONLY|PVRSRV_HAP_UNCACHED,
++				hTimerDisable);
++	}
++#if defined(PVR_OMAP_TIMER_BASE_IN_SYS_SPEC_DATA)
++	psSysSpecData->sTimerRegPhysBase.uiAddr = 0;
++#endif
++#if defined(PVR_OMAP4_TIMING_PRCM)
++	clk_disable(psSysSpecData->psGPT11_ICK);
++
++	clk_disable(psSysSpecData->psGPT11_FCK);
++#endif	/* defined(PVR_OMAP4_TIMING_PRCM) */
++}
++#endif	/* PVR_OMAP_USE_DM_TIMER_API */
++#else	/* (DEBUG || TIMING) && !PVR_NO_OMAP_TIMER */
++static PVRSRV_ERROR AcquireGPTimer(SYS_SPECIFIC_DATA *psSysSpecData)
++{
++	PVR_UNREFERENCED_PARAMETER(psSysSpecData);
++
++	return PVRSRV_OK;
++}
++static void ReleaseGPTimer(SYS_SPECIFIC_DATA *psSysSpecData)
++{
++	PVR_UNREFERENCED_PARAMETER(psSysSpecData);
++}
++#endif /* (DEBUG || TIMING) && !PVR_NO_OMAP_TIMER */
++
++/*
++ * Allwinner A31/A31s power-up, replayed from the stock pvrsrvkm
++ * (EnableSystemClocks/EnableSGXClocks, DDK 1.12): enable the vdd-gpu rail,
++ * clear PRCM GPU_PWROFF_GATING, release the reset, start PLL8 (mem/hyd) and
++ * PLL9 (core), then open the gates in the stock order hyd, core, AHB, mem.
++ * Raw CCU writes for now; the clock framework comes later.
++ */
++#define SUNXI_CCU_BASE		0x01c20000
++#define SUNXI_PRCM_BASE		0x01f01400
++#define SUNXI_PRCM_GPU_PWROFF	0x118
++#define SUNXI_CCU_PLL8		0x038
++#define SUNXI_CCU_PLL9		0x044
++#define SUNXI_CCU_BUS_GATE1	0x064
++#define SUNXI_CCU_GPU_CORE	0x1a0
++#define SUNXI_CCU_GPU_MEM	0x1a4
++#define SUNXI_CCU_GPU_HYD	0x1a8
++#define SUNXI_CCU_BUS_RST1	0x2c4
++#define SUNXI_GPU_BIT		BIT(20)
++#define SUNXI_GPU_EXTRA_BITS	(BIT(21) | BIT(22))	/* set on stock Android, undocumented */
++
++static int SunxiPLLOn(void __iomem *reg, u32 val)
++{
++	u32 v;
++
++	writel(val & ~BIT(31), reg);
++	writel(val, reg);
++	return readl_poll_timeout(reg, v, v & BIT(28), 100, 20000);
++}
++
++static PVRSRV_ERROR SunxiGPUPowerOn(SYS_SPECIFIC_DATA *psSysSpecData)
++{
++	struct device *dev = &gpsPVRLDMDev->dev;
++	void __iomem *ccu, *prcm;
++	int err;
++
++	if (psSysSpecData->bSunxiPowered)
++		return PVRSRV_OK;
++
++	if (!psSysSpecData->pvSunxiCCU)
++	{
++		psSysSpecData->pvSunxiCCU = ioremap(SUNXI_CCU_BASE, 0x400);
++		psSysSpecData->pvSunxiPRCM = ioremap(SUNXI_PRCM_BASE & ~0xfff, 0x1000);
++		if (!psSysSpecData->pvSunxiCCU || !psSysSpecData->pvSunxiPRCM)
++			return PVRSRV_ERROR_UNABLE_TO_ENABLE_CLOCK;
++	}
++	ccu = psSysSpecData->pvSunxiCCU;
++	prcm = psSysSpecData->pvSunxiPRCM + (SUNXI_PRCM_BASE & 0xfff);
++
++	if (!psSysSpecData->psSunxiVdd)
++	{
++		struct regulator *vdd = regulator_get(dev, "gpu");
++
++		if (IS_ERR(vdd))
++		{
++			dev_err(dev, "no gpu regulator: %ld\n", PTR_ERR(vdd));
++			return PVRSRV_ERROR_UNABLE_TO_ENABLE_CLOCK;
++		}
++		psSysSpecData->psSunxiVdd = vdd;
++	}
++	regulator_set_voltage(psSysSpecData->psSunxiVdd, 1200000, 1200000);
++	err = regulator_enable(psSysSpecData->psSunxiVdd);
++	if (err)
++	{
++		dev_err(dev, "gpu regulator enable failed: %d\n", err);
++		return PVRSRV_ERROR_UNABLE_TO_ENABLE_CLOCK;
++	}
++
++	writel(readl(prcm + SUNXI_PRCM_GPU_PWROFF) & ~1, prcm + SUNXI_PRCM_GPU_PWROFF);
++	msleep(2);
++	writel(readl(ccu + SUNXI_CCU_BUS_GATE1) | SUNXI_GPU_EXTRA_BITS, ccu + SUNXI_CCU_BUS_GATE1);
++	writel(readl(ccu + SUNXI_CCU_BUS_RST1) | SUNXI_GPU_EXTRA_BITS, ccu + SUNXI_CCU_BUS_RST1);
++	writel(readl(ccu + SUNXI_CCU_BUS_RST1) | SUNXI_GPU_BIT, ccu + SUNXI_CCU_BUS_RST1);
++
++	if (SunxiPLLOn(ccu + SUNXI_CCU_PLL8, 0x93000d00) ||	/* ~336 MHz */
++	    SunxiPLLOn(ccu + SUNXI_CCU_PLL9, 0x93001801))	/* 300 MHz */
++	{
++		dev_err(dev, "GPU PLLs did not lock\n");
++		return PVRSRV_ERROR_UNABLE_TO_ENABLE_CLOCK;
++	}
++	writel(0x80000000, ccu + SUNXI_CCU_GPU_HYD);		/* PLL8 */
++	writel(0x84000000, ccu + SUNXI_CCU_GPU_CORE);		/* PLL9 */
++	writel(readl(ccu + SUNXI_CCU_BUS_GATE1) | SUNXI_GPU_BIT, ccu + SUNXI_CCU_BUS_GATE1);
++	writel(0x80000000, ccu + SUNXI_CCU_GPU_MEM);		/* PLL8 */
++	udelay(10);
++
++	psSysSpecData->bSunxiPowered = IMG_TRUE;
++	dev_info(dev, "SGX powered: PLL8 %08x PLL9 %08x core %08x\n",
++		 readl(ccu + SUNXI_CCU_PLL8), readl(ccu + SUNXI_CCU_PLL9),
++		 readl(ccu + SUNXI_CCU_GPU_CORE));
++	return PVRSRV_OK;
++}
++
++static IMG_VOID SunxiGPUPowerOff(SYS_SPECIFIC_DATA *psSysSpecData)
++{
++	void __iomem *ccu = psSysSpecData->pvSunxiCCU;
++	void __iomem *prcm;
++
++	if (!psSysSpecData->bSunxiPowered)
++		return;
++	prcm = psSysSpecData->pvSunxiPRCM + (SUNXI_PRCM_BASE & 0xfff);
++
++	writel(0, ccu + SUNXI_CCU_GPU_MEM);
++	writel(readl(ccu + SUNXI_CCU_BUS_GATE1) & ~(SUNXI_GPU_BIT | SUNXI_GPU_EXTRA_BITS), ccu + SUNXI_CCU_BUS_GATE1);
++	writel(0x04000000, ccu + SUNXI_CCU_GPU_CORE);
++	writel(0, ccu + SUNXI_CCU_GPU_HYD);
++	writel(readl(ccu + SUNXI_CCU_BUS_RST1) & ~(SUNXI_GPU_BIT | SUNXI_GPU_EXTRA_BITS), ccu + SUNXI_CCU_BUS_RST1);
++	writel(readl(prcm + SUNXI_PRCM_GPU_PWROFF) | 1, prcm + SUNXI_PRCM_GPU_PWROFF);
++	regulator_disable(psSysSpecData->psSunxiVdd);
++	psSysSpecData->bSunxiPowered = IMG_FALSE;
++}
++
++/*!
++******************************************************************************
++
++ @Function  EnableSystemClocks
++
++ @Description Setup up the clocks for the graphics device to work.
++
++ @Return   PVRSRV_ERROR
++
++******************************************************************************/
++PVRSRV_ERROR EnableSystemClocks(SYS_DATA *psSysData)
++{
++	SYS_SPECIFIC_DATA *psSysSpecData = (SYS_SPECIFIC_DATA *) psSysData->pvSysSpecificData;
++
++	PVR_TRACE(("EnableSystemClocks: Enabling System Clocks"));
++
++	if (!psSysSpecData->bSysClocksOneTimeInit)
++	{
++		mutex_init(&psSysSpecData->sPowerLock);
++
++		atomic_set(&psSysSpecData->sSGXClocksEnabled, 0);
++
++		psSysSpecData->bSysClocksOneTimeInit = IMG_TRUE;
++	}
++
++	if (SunxiGPUPowerOn(psSysSpecData) != PVRSRV_OK)
++		return PVRSRV_ERROR_UNABLE_TO_ENABLE_CLOCK;
++
++	return AcquireGPTimer(psSysSpecData);
++}
++
++/*!
++******************************************************************************
++
++ @Function  DisableSystemClocks
++
++ @Description Disable the graphics clocks.
++
++ @Return  none
++
++******************************************************************************/
++IMG_VOID DisableSystemClocks(SYS_DATA *psSysData)
++{
++	SYS_SPECIFIC_DATA *psSysSpecData = (SYS_SPECIFIC_DATA *) psSysData->pvSysSpecificData;
++
++	PVR_TRACE(("DisableSystemClocks: Disabling System Clocks"));
++
++	/*
++	 * Always disable the SGX clocks when the system clocks are disabled.
++	 * This saves having to make an explicit call to DisableSGXClocks if
++	 * active power management is enabled.
++	 */
++	DisableSGXClocks(psSysData);
++
++	ReleaseGPTimer(psSysSpecData);
++
++	SunxiGPUPowerOff(psSysSpecData);
++}
++
++PVRSRV_ERROR SysPMRuntimeRegister(void)
++{
++#if defined(LDM_PLATFORM) && !defined(PVR_DRI_DRM_NOT_PCI)
++	pm_runtime_enable(&gpsPVRLDMDev->dev);
++#endif
++	return PVRSRV_OK;
++}
++
++PVRSRV_ERROR SysPMRuntimeUnregister(void)
++{
++#if defined(LDM_PLATFORM) && !defined(PVR_DRI_DRM_NOT_PCI)
++	pm_runtime_disable(&gpsPVRLDMDev->dev);
++#endif
++	return PVRSRV_OK;
++}
++
++PVRSRV_ERROR SysDvfsInitialize(SYS_SPECIFIC_DATA *psSysSpecificData)
++{
++	PVR_UNREFERENCED_PARAMETER(psSysSpecificData);
++#if defined(SYS_OMAP_HAS_DVFS_FRAMEWORK)
++	if (sgxfreq_init(&gpsPVRLDMDev->dev))
++		return PVRSRV_ERROR_NOT_SUPPORTED;
++#endif /* defined(SYS_OMAP_HAS_DVFS_FRAMEWORK) */
++
++	return PVRSRV_OK;
++}
++
++PVRSRV_ERROR SysDvfsDeinitialize(SYS_SPECIFIC_DATA *psSysSpecificData)
++{
++	PVR_UNREFERENCED_PARAMETER(psSysSpecificData);
++#if defined(SYS_OMAP_HAS_DVFS_FRAMEWORK)
++	if (sgxfreq_deinit())
++		return PVRSRV_ERROR_NOT_SUPPORTED;
++#endif /* defined(SYS_OMAP_HAS_DVFS_FRAMEWORK) */
++
++	return PVRSRV_OK;
++}
++
++#if defined(SUPPORT_DRI_DRM_PLUGIN)
++static struct omap_gpu_plugin sOMAPGPUPlugin;
++
++#define	SYS_DRM_SET_PLUGIN_FIELD(d, s, f) (d)->f = (s)->f
++int
++SysDRMRegisterPlugin(PVRSRV_DRM_PLUGIN *psDRMPlugin)
++{
++	int iRes;
++
++	SYS_DRM_SET_PLUGIN_FIELD(&sOMAPGPUPlugin, psDRMPlugin, name);
++	SYS_DRM_SET_PLUGIN_FIELD(&sOMAPGPUPlugin, psDRMPlugin, open);
++	SYS_DRM_SET_PLUGIN_FIELD(&sOMAPGPUPlugin, psDRMPlugin, load);
++	SYS_DRM_SET_PLUGIN_FIELD(&sOMAPGPUPlugin, psDRMPlugin, unload);
++	SYS_DRM_SET_PLUGIN_FIELD(&sOMAPGPUPlugin, psDRMPlugin, release);
++	SYS_DRM_SET_PLUGIN_FIELD(&sOMAPGPUPlugin, psDRMPlugin, mmap);
++	SYS_DRM_SET_PLUGIN_FIELD(&sOMAPGPUPlugin, psDRMPlugin, ioctls);
++	SYS_DRM_SET_PLUGIN_FIELD(&sOMAPGPUPlugin, psDRMPlugin, num_ioctls);
++	SYS_DRM_SET_PLUGIN_FIELD(&sOMAPGPUPlugin, psDRMPlugin, ioctl_start);
++
++	iRes = omap_gpu_register_plugin(&sOMAPGPUPlugin);
++	if (iRes != 0)
++	{
++		PVR_DPF((PVR_DBG_ERROR, "%s: omap_gpu_register_plugin failed (%d)", __FUNCTION__, iRes));
++	}
++
++	return iRes;
++}
++
++void
++SysDRMUnregisterPlugin(PVRSRV_DRM_PLUGIN *psDRMPlugin)
++{
++	int iRes = omap_gpu_unregister_plugin(&sOMAPGPUPlugin);
++	if (iRes != 0)
++	{
++		PVR_DPF((PVR_DBG_ERROR, "%s: omap_gpu_unregister_plugin failed (%d)", __FUNCTION__, iRes));
++	}
++}
++#endif
++
++IMG_VOID SysSGXIdleEntered(IMG_VOID)
++{
++#if defined(SYS_OMAP_HAS_DVFS_FRAMEWORK)
++	sgxfreq_notif_sgx_idle();
++#endif
++}
++
++IMG_VOID SysSGXCommandPending(IMG_BOOL bSGXIdle)
++{
++#if defined(SYS_OMAP_HAS_DVFS_FRAMEWORK)
++	if (bSGXIdle)
++		sgxfreq_notif_sgx_active();
++#else
++	PVR_UNREFERENCED_PARAMETER(bSGXIdle);
++#endif
++}
+-- 
+2.56.0
+

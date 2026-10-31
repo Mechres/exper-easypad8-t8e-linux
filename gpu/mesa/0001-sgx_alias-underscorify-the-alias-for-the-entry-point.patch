@@ -1,0 +1,25 @@
+From e25e81582a43460bc0b710ae1f56ba556df336f8 Mon Sep 17 00:00:00 2001
+From: Mechres <164776284+Mechres@users.noreply.github.com>
+Date: Sat, 31 Oct 2026 06:44:26 +0300
+Subject: [PATCH] sgx_alias: underscorify the alias for the entry point name
+ (sun4i-drm)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/gallium/drivers/sgx_alias/meson.build | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/gallium/drivers/sgx_alias/meson.build b/src/gallium/drivers/sgx_alias/meson.build
+index cb5f803..fe4e248 100644
+--- a/src/gallium/drivers/sgx_alias/meson.build
++++ b/src/gallium/drivers/sgx_alias/meson.build
+@@ -19,5 +19,5 @@
+ # SOFTWARE.
+ 
+ driver_sgx_alias = declare_dependency(
+-  compile_args: '-DGALLIUM_SGX_ALIAS=@0@'.format(gallium_sgx_alias)
++  compile_args: '-DGALLIUM_SGX_ALIAS=@0@'.format(gallium_sgx_alias.underscorify())
+ )
+-- 
+2.56.0
+

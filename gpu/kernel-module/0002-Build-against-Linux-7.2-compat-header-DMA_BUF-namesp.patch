@@ -1,0 +1,127 @@
+From eca1c3c5d0a14aaca28bd06c56bfc623fdbda199 Mon Sep 17 00:00:00 2001
+From: Mechres <164776284+Mechres@users.noreply.github.com>
+Date: Sat, 31 Oct 2026 06:44:26 +0300
+Subject: [PATCH 2/4] Build against Linux 7.2: compat header, DMA_BUF
+ namespace, pfn_t, drm_driver.date
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ .../build/linux2/kbuild/Makefile.template     |  1 +
+ .../include/env/linux/pvr_linux_compat.h      | 38 +++++++++++++++++++
+ services4/srvkm/env/linux/dmabuf.c            |  4 ++
+ services4/srvkm/env/linux/mmap.c              |  7 +++-
+ services4/srvkm/env/linux/pvr_drm.c           |  2 +
+ 5 files changed, 51 insertions(+), 1 deletion(-)
+ create mode 100644 services4/include/env/linux/pvr_linux_compat.h
+
+diff --git a/eurasiacon/build/linux2/kbuild/Makefile.template b/eurasiacon/build/linux2/kbuild/Makefile.template
+index ecd8d1d..d1c0b91 100644
+--- a/eurasiacon/build/linux2/kbuild/Makefile.template
++++ b/eurasiacon/build/linux2/kbuild/Makefile.template
+@@ -78,6 +78,7 @@ $(OUT)/$(TARGET_PRIMARY_ARCH)/kbuild/%.c: $(TOP)/%.c
+ 
+ 
+ ccflags-y += -D__linux__ -include $(OUT)/config_kernel.h \
++ -include $(TOP)/services4/include/env/linux/pvr_linux_compat.h \
+  -I$(OUT)/include \
+  -I$(TOP)/include4 \
+  -I$(TOP)/services4/include \
+diff --git a/services4/include/env/linux/pvr_linux_compat.h b/services4/include/env/linux/pvr_linux_compat.h
+new file mode 100644
+index 0000000..85a8204
+--- /dev/null
++++ b/services4/include/env/linux/pvr_linux_compat.h
+@@ -0,0 +1,38 @@
++/* SPDX-License-Identifier: (GPL-2.0 OR MIT) */
++/*
++ * Compatibility shims for kernels newer than the 6.1 this DDK was written
++ * for. Force-included into every kbuild object (see kbuild/Makefile.template).
++ */
++#ifndef PVR_LINUX_COMPAT_H
++#define PVR_LINUX_COMPAT_H
++
++#include <linux/version.h>
++#include <linux/preempt.h>
++#include <linux/string.h>
++#include <linux/timer.h>
++
++#ifndef in_irq
++#define in_irq()	in_hardirq()
++#endif
++
++#ifndef from_timer
++#define from_timer(var, callback_timer, timer_fieldname) \
++	timer_container_of(var, callback_timer, timer_fieldname)
++#endif
++
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 15, 0)
++#define del_timer_sync(t)	timer_delete_sync(t)
++#endif
++
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 0, 0)
++/* strncpy() is gone; every DDK user copies a string into a buffer of n bytes. */
++static inline char *pvr_strncpy(char *dst, const char *src, size_t n)
++{
++	if (n)
++		strscpy_pad(dst, src, n);
++	return dst;
++}
++#define strncpy(d, s, n)	pvr_strncpy(d, s, n)
++#endif
++
++#endif /* PVR_LINUX_COMPAT_H */
+diff --git a/services4/srvkm/env/linux/dmabuf.c b/services4/srvkm/env/linux/dmabuf.c
+index a1e547b..0391267 100644
+--- a/services4/srvkm/env/linux/dmabuf.c
++++ b/services4/srvkm/env/linux/dmabuf.c
+@@ -50,8 +50,12 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ 
+ #if !LINUX_VERSION_CODE < KERNEL_VERSION(5,16,0)
+ #include <linux/module.h>
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 13, 0)
++MODULE_IMPORT_NS("DMA_BUF");
++#else
+ MODULE_IMPORT_NS(DMA_BUF);
+ #endif
++#endif
+ 
+ #if defined(SUPPORT_DRI_DRM)
+ #if LINUX_VERSION_CODE < KERNEL_VERSION(5,5,0)
+diff --git a/services4/srvkm/env/linux/mmap.c b/services4/srvkm/env/linux/mmap.c
+index fbf2779..22fd889 100644
+--- a/services4/srvkm/env/linux/mmap.c
++++ b/services4/srvkm/env/linux/mmap.c
+@@ -804,10 +804,15 @@ DoMapToUser(LinuxMemArea *psLinuxMemArea,
+ #if defined(PVR_MAKE_ALL_PFNS_SPECIAL)
+ 		    if (bMixedMap)
+ 		    {
+-			pfn_t pfns = { pfn };
+ 			vm_fault_t vmf;
+ 
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 17, 0)
++			vmf = vmf_insert_mixed(ps_vma, ulVMAPos, pfn);
++#else
++			pfn_t pfns = { pfn };
++
+ 			vmf = vmf_insert_mixed(ps_vma, ulVMAPos, pfns);
++#endif
+ 			if (vmf & VM_FAULT_ERROR)
+ 				result = vm_fault_to_errno(vmf, 0);
+ 	                if(result != 0)
+diff --git a/services4/srvkm/env/linux/pvr_drm.c b/services4/srvkm/env/linux/pvr_drm.c
+index 34e7ad7..8d04e0a 100644
+--- a/services4/srvkm/env/linux/pvr_drm.c
++++ b/services4/srvkm/env/linux/pvr_drm.c
+@@ -551,7 +551,9 @@ static struct drm_driver sPVRDrmDriver =
+ 	.fops = &sPVRFileOps,
+ 	.name = "pvr",
+ 	.desc = PVR_DRM_DESC,
++#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 14, 0)
+ 	.date = PVR_DRM_DATE,
++#endif
+ 	.major = PVRVERSION_MAJ,
+ 	.minor = PVRVERSION_MIN,
+ 	.patchlevel = PVRVERSION_BUILD,
+-- 
+2.56.0
+

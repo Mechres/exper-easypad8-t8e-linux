@@ -1,0 +1,38 @@
+From a2d9f89a81e60fe011dfb277da0a85e14122d855 Mon Sep 17 00:00:00 2001
+From: Mechres <164776284+Mechres@users.noreply.github.com>
+Date: Sat, 31 Oct 2026 06:44:26 +0300
+Subject: [PATCH 1/4] kbuild: create source symlinks for Linux >= 6.13 external
+ module builds
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ eurasiacon/build/linux2/kbuild/Makefile.template | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/eurasiacon/build/linux2/kbuild/Makefile.template b/eurasiacon/build/linux2/kbuild/Makefile.template
+index d0d40ef..ecd8d1d 100644
+--- a/eurasiacon/build/linux2/kbuild/Makefile.template
++++ b/eurasiacon/build/linux2/kbuild/Makefile.template
+@@ -76,6 +76,7 @@ $(OUT)/$(TARGET_PRIMARY_ARCH)/kbuild/%.c: $(TOP)/%.c
+ 	@if [ ! -e $(dir $@) ]; then mkdir -p $(dir $@); fi
+ 	@if [ ! -h $@ ]; then ln -sf $< $@; fi
+ 
++
+ ccflags-y += -D__linux__ -include $(OUT)/config_kernel.h \
+  -I$(OUT)/include \
+  -I$(TOP)/include4 \
+@@ -100,4 +101,11 @@ include $(INTERNAL_KBUILD_MAKEFILES)
+ $(if $(pvrsrvkm-y),,$(error pvrsrvkm-y was empty, which could mean that srvkm is missing from $$(KERNEL_COMPONENTS)))
+ pvrsrvkm-y += $(foreach _m,$(INTERNAL_EXTRA_KBUILD_OBJECTS:.o=),$($(_m)-y))
+ 
++# Since Linux 6.13 kbuild runs external module builds from inside $(M) and
++# asks for relative targets, which the absolute pattern rules above never
++# match. Create the source symlinks up front instead.
++_pvr_kbuild_srcs := $(sort $(patsubst %.o,%.c,$(foreach _m,$(INTERNAL_KBUILD_OBJECTS:.o=),$($(_m)-y))))
++$(foreach _f,$(_pvr_kbuild_srcs),$(shell mkdir -p $(dir $(_f)) && \
++	{ [ -h $(_f) ] || ln -sf $(if $(filter external/%,$(_f)),$(EXTRA_KBUILD_SOURCE)/$(patsubst external/%,%,$(_f)),$(TOP)/$(_f)) $(_f); }))
++
+ obj-m += $(INTERNAL_KBUILD_OBJECTS)
+-- 
+2.56.0
+

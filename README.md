@@ -53,7 +53,7 @@ Internal NAND/eMMC flash remains completely untouched; the entire system boots c
 | **Backlight** | `pwm-backlight` (PH13 PWM0, PA25 enable, PG12 supply) | **Working** | `/sys/class/backlight/backlight` (0–56), `bl_power` for on/off |
 | **DE1 hardware scaler** | `sun4i-frontend` (A31 DEFE) | **Not working** | Frontend never produces output on the A31s, see Finding 48; scale in software instead |
 | **Video decoder** | `cedrus` (A31 Cedar VE, `/dev/video0`) | **Decodes H.264 and VP8, with a known H.264 chroma defect** | Bound to the A20 variant (MPEG-2, H.264, VP8; `NV12_32L32` output); the engine reports `VE_VERSION` 0x1633. VP8 is bit-exact; H.264 (GStreamer `v4l2slh264dec`) decoded three real 640x360 High-profile clips bit-exactly in 120 of 120 runs on a well-charged battery (intermittent errors seen earlier on a nearly empty battery, cause unverified) and differs only in chroma samples at the 0/255 limits of very saturated synthetic patterns (the real clips never leave the 16-240 chroma range, so this is unlikely to matter for natural video); MPEG-2 is within 5 levels of FFmpeg (Finding 51) |
-| **GPU** | No mainline driver | The A31s has a PowerVR SGX544 MP2, not a Mali; Lima does not apply (Finding 52). A bring-up attempt hung the bus on the first GPU register read even with the stock power-up sequence replayed (Finding 60) |
+| **GPU** | Out-of-tree TI SGX DDK 1.17 port (`pvrsrvkm`) + TI Mesa fork | **Working (needs TI user space, not included)** | PowerVR SGX544 MP2: OpenGL ES 2.0 via GBM/EGL, on-screen at 55 fps, glmark2 211, weston/Wayland with touch; see [gpu/README.md](gpu/README.md) and Findings 60, 61. The GPU user-space libraries are licensed by TI for TI devices only and are not part of this repository |
 | **Thermal** | `sun4i-ts` sensor (`cpu-thermal`, `&rtp`) | **Working** | `/sys/class/thermal/thermal_zone0/temp` reads the SoC temperature (about 36 °C idle) |
 | **Audio** | Allwinner `sun4i-codec` (`sun6i-a31-codec`) | **Working** | Stereo DAC, Line Out (Speaker amp PL4), Headphone & Mic |
 | **Bluetooth** | `btusb` (External) | **N/A (Not Fitted)** | Internal AP6181 is Wi-Fi only; external USB Bluetooth supported via OTG |
@@ -64,7 +64,7 @@ Internal NAND/eMMC flash remains completely untouched; the entire system boots c
 
 | Area | State | Notes |
 |---|---|---|
-| **GPU** | No mainline driver | The A31s has a PowerVR SGX544 MP2, not a Mali; Lima does not apply (Finding 52) |
+| **GPU** | Works out of tree, not shippable | No mainline SGX driver; the working stack depends on TI user-space binaries licensed for TI devices only. A licence-clean route with the tablet's own stock DDK 1.12 libraries is in progress ([gpu/README.md](gpu/README.md), Finding 61) |
 | **Idle power** | High | About 490 mA on the battery with the screen off, about 425 mA with the panel off and one core online; the source of most of it is not identified (Finding 55) |
 | **Suspend** | s2idle only | Works with the Wi-Fi chip kept powered (patch 0015); the benefit is unmeasured, a resume always turns the backlight on, the USB gadget does not always return, and `exper-powerd` does not suspend the system (Finding 54) |
 | **Battery charging** | Partly solved | The AXP221 VBUS limit was 500 mA; lifting it halves the discharge on a PC USB port, but with the screen on the tablet still draws more than the port gives. It charges with the screen blanked (about +150 mA); a 2 A adapter is the intended supply (Finding 56) |
@@ -179,6 +179,7 @@ python3 scripts/serial-capture.py /dev/ttyUSB0
 - [docs/BUILD.md](docs/BUILD.md) — Detailed build prerequisites, compilation steps, and flashing instructions.
 - [docs/FINDINGS.md](docs/FINDINGS.md) — Comprehensive technical reference detailing all 50 hardware and software bring-up findings.
 - [patches/README.md](patches/README.md) — Overview of U-Boot and Linux kernel patches.
+- [gpu/README.md](gpu/README.md) — PowerVR SGX544 GPU: kernel module port, Mesa, Wayland, build and install scripts, licensing.
 
 ---
 

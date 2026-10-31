@@ -30,3 +30,6 @@ __pycache__/
 *.pyc
 /scripts/exper-backlight
 /scripts/exper-powerd
+
+# GPU build work directory (clones, sysroot, builds)
+/gpu/work/
