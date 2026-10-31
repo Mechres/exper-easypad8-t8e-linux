@@ -1,0 +1,71 @@
+From f7f35de187fda744eb20a1445e1fd0c073331505 Mon Sep 17 00:00:00 2001
+From: Mechres <164776284+Mechres@users.noreply.github.com>
+Date: Sat, 31 Oct 2026 06:01:26 +0300
+Subject: [PATCH] ARM: dts: sun6i: Add the SGX544 GPU node and enable it on the
+ exper-t8e
+
+The A31/A31s has a PowerVR SGX544 MP2 (rev 1.1.5) at 0x01c40000, IRQ
+SPI 97. The binding already lists "allwinner,sun6i-a31-gpu" with the core
+and memory clocks; add the node, disabled, to the SoC dtsi.
+
+The binding has no supply property, so the T8E keeps vdd-gpu (DCDC2) on
+at the stock 1.2 V instead of letting the kernel switch it off as unused
+about 30 s after boot. The GPU stays power-gated by the PRCM until a
+driver powers it up.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ arch/arm/boot/dts/allwinner/sun6i-a31.dtsi        | 10 ++++++++++
+ .../boot/dts/allwinner/sun6i-a31s-exper-t8e.dts   | 15 +++++++++++++++
+ 2 files changed, 25 insertions(+)
+
+diff --git a/arch/arm/boot/dts/allwinner/sun6i-a31.dtsi b/arch/arm/boot/dts/allwinner/sun6i-a31.dtsi
+index 8ac97e03a..460c86be3 100644
+--- a/arch/arm/boot/dts/allwinner/sun6i-a31.dtsi
++++ b/arch/arm/boot/dts/allwinner/sun6i-a31.dtsi
+@@ -1004,6 +1004,16 @@ mdio: mdio {
+ 			};
+ 		};
+ 
++		gpu: gpu@1c40000 {
++			compatible = "allwinner,sun6i-a31-gpu",
++				     "img,powervr-sgx544";
++			reg = <0x01c40000 0x10000>;
++			interrupts = <GIC_SPI 97 IRQ_TYPE_LEVEL_HIGH>;
++			clocks = <&ccu CLK_GPU_CORE>, <&ccu CLK_GPU_MEMORY>;
++			clock-names = "core", "mem";
++			status = "disabled";
++		};
++
+ 		crypto: crypto-engine@1c15000 {
+ 			compatible = "allwinner,sun6i-a31-crypto",
+ 				     "allwinner,sun4i-a10-crypto";
+diff --git a/arch/arm/boot/dts/allwinner/sun6i-a31s-exper-t8e.dts b/arch/arm/boot/dts/allwinner/sun6i-a31s-exper-t8e.dts
+index 3a6ccf500..fa7a87d3c 100644
+--- a/arch/arm/boot/dts/allwinner/sun6i-a31s-exper-t8e.dts
++++ b/arch/arm/boot/dts/allwinner/sun6i-a31s-exper-t8e.dts
+@@ -161,6 +161,21 @@ &reg_dc1sw {
+ 	regulator-always-on;
+ };
+ 
++/*
++ * vdd-gpu: the SGX544 binding has no supply property, so keep the rail at
++ * the stock 1.2 V instead of letting the kernel switch it off as unused.
++ * The GPU itself stays power-gated by the PRCM until its driver loads.
++ */
++&reg_dcdc2 {
++	regulator-always-on;
++	regulator-min-microvolt = <1200000>;
++	regulator-max-microvolt = <1200000>;
++};
++
++&gpu {
++	status = "okay";
++};
++
+ &usbphy {
+ 	/delete-property/ usb0_vbus_power-supply;
+ 	/delete-property/ usb0_vbus-supply;
+-- 
+2.56.0
+

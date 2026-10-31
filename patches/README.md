@@ -55,5 +55,7 @@ Applied against mainline Linux (6.12+ / 7.x):
     Adds HDMI audio to `sun4i-drm-hdmi`: an hdmi-codec from the DRM HDMI audio helper, an ASoC CPU DAI with a dmaengine PCM on the audio FIFO port (DRQ 14), a sound card (`sun4i-hdmi`), the audio infoframe and the packet arbiter setup. Needs `CONFIG_DRM_SUN4I_HDMI_AUDIO=y` (set in `configs/exper_t8e_defconfig`); the existing `dmas`/`dma-names` of `hdmi@1c16000` are used, no DTS change. 2 channels, S16_LE/S24_LE, 32/44.1/48 kHz.
 19. `0019-ARM-dts-sun6i-exper-t8e-Give-the-cpu-nodes-a-capacit.patch`:
     Adds `capacity-dmips-mhz = <1024>` to the four cpu nodes in the board DTS. Cosmetic: it silences the four `missing clock-frequency property` boot messages from `arch/arm/kernel/topology.c`; all cores are identical Cortex-A7 so the capacities were equal anyway.
+20. `0020-ARM-dts-sun6i-Add-the-SGX544-GPU-node-and-enable-it-.patch`:
+    Adds the PowerVR SGX544 MP2 node (`allwinner,sun6i-a31-gpu`, 0x01c40000, SPI 97, core and memory clocks, as in the existing binding) to `sun6i-a31.dtsi`, disabled, and enables it on the T8E. The board keeps vdd-gpu (DCDC2) at 1.2 V always on, since the binding has no supply property. Mainline has no SGX driver: the node is for the out-of-tree TI DDK 1.17 port described in Finding 61 (`docs/FINDINGS.md`); without that module it only reserves the rail.
 
 The DE1 display frontend (hardware scaler) is intentionally not part of the series: it produces no output on the A31s (see Finding 48 in `docs/FINDINGS.md`).
