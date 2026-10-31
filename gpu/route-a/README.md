@@ -17,8 +17,11 @@ Background: Finding 62 in [`docs/FINDINGS.md`](../../docs/FINDINGS.md).
 | OpenGL ES 2.0 | Works offscreen (pbuffer) and with window surfaces, `GL_VERSION` "OpenGL ES 2.0 build 1.12@2681055" |
 | Buffers and fences | Stock `gralloc` "gpu0" allocator on `/dev/ion` (`ion-compat/`, dma-buf based); `/dev/pvr_sync` native fences in `pvrsrvkm` |
 | On-screen (KMS) | Works: gralloc buffers are imported into `sun4i-drm` as dma-bufs (PRIME) and page-flipped, 55 fps on the LVDS panel with 1 or 10 blended layers; 60 s at 10 layers with no memory growth |
-| Programs | Android (bionic) programs only, built with the NDK and run with the stock `/system/bin/linker`. Linux (musl/glibc) programs need libhybris: not done yet |
-| Not done | libhybris, Wayland/weston, a real display-class driver (`dcnohw` is a placeholder), the stock `gralloc` "fb0" device (it uses Allwinner's 3.x `/dev/disp` ioctls), clock-framework power code, suspend, power measurement |
+| Android programs | Built with the NDK, run with the stock `/system/bin/linker` |
+| Linux programs | glibc programs through libhybris (`/opt/hybris`): offscreen GLES and on-screen KMS at 55 fps |
+| GBM | `gbm-hybris/`: a libgbm on gralloc buffers plus a libhybris EGL platform, enough for GBM/EGL/KMS programs and weston's DRM backend (55 fps) |
+| Wayland | Debian's weston 10 composites with the GL renderer on the stock libraries; shm clients, EGL clients (libhybris' Wayland platform, e.g. `weston-simple-egl`) and touch work |
+| Not done | a real display-class driver (`dcnohw` is a placeholder), the stock `gralloc` "fb0" device (it uses Allwinner's 3.x `/dev/disp` ioctls), clock-framework power code, suspend, power measurement |
 
 Route A and the TI stack both use a module called `pvrsrvkm`, so only one runs at a time. `stock-run` swaps the TI
 stack out and `stock-run restore` brings it back.
@@ -49,6 +52,28 @@ stack out and `stock-run restore` brings it back.
   information): `layout-diff.sh` (member offsets, needs `pahole`), `compare-ids.sh` and `dispatch-table.py` (ioctl
   numbering).
 
+## Linux programs: libhybris
+
+[libhybris](https://github.com/libhybris/libhybris) loads Android libraries into glibc programs. Built for Android
+4.4.2 (headers from Halium's `android-headers` history) with the toolchain's glibc, it runs the stock EGL/GLES on
+Alpine next to musl, from `/opt/hybris` with its own glibc runtime. Two things it does not do on its own are handled
+by `tools/hybris-bionic-init.c`, which must be the first preload (`hybris-run` takes care of it):
+
+- the stock bionic `libc.so` is loaded but never initialised, so property lookups inside it crash; the preload calls
+  its `__system_properties_init()`. (libhybris itself reads properties from `/system/build.prop`, so the installer
+  adds `ro.hardware=sun6i` there.)
+- Android code keeps per-thread data in fixed slots after the TLS register (the GL dispatch table and context in
+  slots 3 and 4). With glibc that space belongs to the first module's thread-local variables; the preload reserves
+  it with a thread-local block of its own and checks that it landed there. Patched glibc builds used with libhybris
+  elsewhere reserve these slots instead; this works with an unmodified glibc as long as the program itself has no
+  thread-local variables.
+
+`gbm-hybris/` adds GBM: a `gbm_surface` is an Android native window over gralloc buffers whose dma-bufs are imported
+into the KMS device, `gbm_surface_lock_front_buffer` returns the buffer just rendered, and the libhybris EGL platform
+"gbm" (`HYBRIS_EGLPLATFORM=gbm`) turns a `gbm_surface` into that window. The same preload translates the Android pixel
+formats the stock EGL reports as `EGL_NATIVE_VISUAL_ID` into DRM fourccs and maps `EGL_PLATFORM_GBM_KHR` displays onto
+the "gbm" platform.
+
 ## Getting your stock /system
 
 Boot the tablet's Android (without the Linux SD card), enable USB debugging and pull the system partition:
@@ -69,9 +94,13 @@ kernel, a glibc armhf cross toolchain), an Android NDK (r25c tested) and `python
 gpu/route-a/scripts/10-build-modules.sh               # openpvrsgx + patches, ion-compat -> gpu/work/route-a/*.ko
 NDK_DIR=/path/to/android-ndk-r25c \
   gpu/route-a/scripts/20-build-tools.sh               # bionic test programs
+gpu/route-a/scripts/40-build-libhybris.sh            # libhybris, gbm-hybris, glibc test programs
+gpu/scripts/40-fetch-weston.sh                       # optional: Debian weston 10
 STOCK_SYSTEM=/path/to/t8e-system \
-  gpu/route-a/scripts/30-install-tablet.sh            # stock files + modules + tools to the tablet
+  gpu/route-a/scripts/30-install-tablet.sh [--weston] # stock files + modules + tools to the tablet
 ```
+
+Step 40 also needs `autoconf`, `automake`, `libtool` and `wayland-scanner` on the build machine.
 
 The modules must match the running kernel exactly; the installer refuses a mismatch. On the tablet the stock files go
 to `/system` (with `/vendor -> /system/vendor`), which is where the stock linker and EGL loader look; the modules,
@@ -87,3 +116,13 @@ the property area and `stock-run` go to `/opt/pvr-stock`.
 ```
 
 `stock-run` prints the program's exit code and the end of the Android log (`/dev/log/main`, a plain file here).
+
+Linux programs (after `/opt/pvr-stock/stock-run true` has started the stock services):
+
+```sh
+/opt/hybris/hybris-run /opt/hybris/bin/hybris-gles-probe            # offscreen
+/opt/hybris/hybris-run /opt/hybris/bin/hybris-kms-gles 10 [layers]  # on the panel, own native window
+HYBRIS_EGLPLATFORM=gbm /opt/hybris/hybris-run /opt/hybris/bin/kms-gles 10   # on the panel through GBM
+/opt/hybris/weston-run                                              # weston on tty2 (--weston install)
+/opt/hybris/weston-run /opt/hybris/bin/weston-simple-egl            # a client, from another shell
+```
