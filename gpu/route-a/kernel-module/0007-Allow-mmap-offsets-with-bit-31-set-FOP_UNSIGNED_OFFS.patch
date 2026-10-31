@@ -1,0 +1,50 @@
+From ba35e27a8244552f63c93b605efc424f73a206f2 Mon Sep 17 00:00:00 2001
+From: Mechres <164776284+Mechres@users.noreply.github.com>
+Date: Sat, 31 Oct 2026 07:36:35 +0300
+Subject: [PATCH 07/11] Allow mmap offsets with bit 31 set
+ (FOP_UNSIGNED_OFFSET); print driver errors
+
+Linux refuses character-device mmap page offsets above ULONG_MAX bytes unless the
+driver sets FOP_UNSIGNED_OFFSET; the services' mmap offsets have bit 31 set. Also
+build with PVRSRV_NEED_PVR_DPF so PVR_DPF errors and warnings reach the log.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ Kbuild                             | 2 ++
+ services4/srvkm/env/linux/module.c | 7 +++++++
+ 2 files changed, 9 insertions(+)
+
+diff --git a/Kbuild b/Kbuild
+index 7a1d23d..4736573 100644
+--- a/Kbuild
++++ b/Kbuild
+@@ -41,6 +41,8 @@ ccflags-y += -DSUPPORT_SRVINIT -DSUPPORT_SGX -DSUPPORT_HW_RECOVERY -DPVR_SECURE_
+ # stock structure layout and ioctl numbering of the Android build (ION and native fence fields, the two
+ # ION ioctls) without the ION/sync functionality, which mainline does not have
+ ccflags-y += -DPVR_T8E_ABI_1_12
++# print the driver's error/warning messages in this release build
++ccflags-y += -DPVRSRV_NEED_PVR_DPF
+ 
+ ccflags-y += -Wno-pointer-arith -Wno-sign-conversion -fno-strict-aliasing -g
+ 
+diff --git a/services4/srvkm/env/linux/module.c b/services4/srvkm/env/linux/module.c
+index e05498c..59e33b9 100644
+--- a/services4/srvkm/env/linux/module.c
++++ b/services4/srvkm/env/linux/module.c
+@@ -216,6 +216,13 @@ static struct file_operations pvrsrv_fops =
+ 	.open=PVRSRVOpen,
+ 	.release=PVRSRVRelease,
+ 	.mmap=PVRMMap,
++#if defined(FOP_UNSIGNED_OFFSET)
++	/*
++	 * mmap offsets handed out by the services have bit 31 set; without this, Linux >= 4.x
++	 * refuses page offsets above ULONG_MAX bytes for character devices (EOVERFLOW)
++	 */
++	.fop_flags = FOP_UNSIGNED_OFFSET,
++#endif
+ };
+ #endif
+ 
+-- 
+2.56.0
+

@@ -16,6 +16,7 @@ Background, measurements and the full story: Findings 52, 60 and 61 in [`docs/FI
 | glmark2-es2-drm | Score 211 at 1024x768; `terrain` and `refract` are CPU-bound inside the closed GLES library (1 to 2 fps) |
 | Wayland | Debian bookworm's weston 10 composites with the GL renderer; EGL Wayland clients run at 55 fps; touch works |
 | Boot integration | OpenRC service `pvr` initialises the GPU at boot; `weston` service available, not enabled |
+| Route A | Stock Allwinner DDK 1.12 user space from the tablet's own firmware on a ported openpvrsgx module: GLES2 offscreen and on the panel at 55 fps, bionic programs only so far ([`route-a/`](route-a/README.md)) |
 | Not done | Clock-framework power code (raw CCU writes for now), suspend/resume, power measurement, GLES 3 (the hardware is GLES 2 only) |
 
 Core revision 1.1.5 runs TI's microkernel built for revision 1.1.6 (DRA7/AM57xx, the same SGX544 MP2). Nothing has gone
@@ -33,9 +34,10 @@ wrong in testing so far, but errata differences between the two revisions are po
 | **TI SGX user space** (`libsrv_um`, `libsrv_init`, `libGLESv2_PVR_MESA`, `libpvr_dri_support`, `pvrsrvctl`, ...) | TI text file license: binary redistribution only unmodified and **"for use only with TI Devices"** | **No.** The A31s is not a TI device, so these binaries are not distributed here and the scripts do not download them |
 
 The working stack therefore needs a copy of TI's user space that you obtain and use under TI's terms; whether that use is
-covered for a non-TI device is for you to judge (this is not legal advice). A licence-clean alternative is being worked on:
-the tablet's own stock Allwinner GPU libraries (DDK 1.12, part of every T8E's Android firmware) with a kernel module
-adapted to them ("route A" in Finding 61).
+covered for a non-TI device is for you to judge (this is not legal advice). The alternative is **route A**
+([`route-a/`](route-a/README.md)): the tablet's own stock Allwinner GPU libraries (DDK 1.12, part of every T8E's Android
+firmware, copied from your own tablet) with a kernel module adapted to them. It renders offscreen and on the panel at
+55 fps, for Android (bionic) programs so far.
 
 ## How it fits together
 

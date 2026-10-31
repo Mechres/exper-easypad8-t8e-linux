@@ -1,0 +1,57 @@
+From 507b1aa45ea153dd9f193e8288a80bc83aac3fbb Mon Sep 17 00:00:00 2001
+From: Mechres <164776284+Mechres@users.noreply.github.com>
+Date: Sat, 31 Oct 2026 08:21:24 +0300
+Subject: [PATCH 09/11] Build dc_nohw (display class without hardware) as
+ dcnohw.ko
+
+Allwinner's stock gralloc refuses to open unless the services have a display-class
+device. dc_nohw registers one backed by plain memory (1024x768 ARGB8888). Fixes:
+per-object CFLAGS need the path relative to the Kbuild; vmalloc() instead of the
+three-argument __vmalloc() for its buffers (never scanned out).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ Kbuild                                     | 12 ++++++++++++
+ services4/3rdparty/dc_nohw/dc_nohw_linux.c |  6 +++++-
+ 2 files changed, 17 insertions(+), 1 deletion(-)
+
+diff --git a/Kbuild b/Kbuild
+index 84753f4..4e681a1 100644
+--- a/Kbuild
++++ b/Kbuild
+@@ -90,3 +90,15 @@ pvrsrvkm-y := \
+ 	services4/srvkm/env/linux/pvr_debug.o \
+ 	services4/system/$(PVR_SYSTEM)/sysconfig.o \
+ 	services4/system/$(PVR_SYSTEM)/sysutils_linux.o
++
++# Display-class device without hardware (DDK example dc_nohw): Allwinner's stock gralloc refuses to
++# open unless a display-class device exists. Buffers are plain memory sized like the LVDS panel.
++obj-m += dcnohw.o
++dcnohw-y := \
++	services4/3rdparty/dc_nohw/dc_nohw_displayclass.o \
++	services4/3rdparty/dc_nohw/dc_nohw_linux.o
++# per-object flags need the path relative to this Kbuild
++DC_NOHW_FLAGS := -I$(src)/services4/3rdparty/dc_nohw -DDC_NOHW_DISCONTIG_BUFFERS \
++	-DDC_NOHW_GET_BUFFER_DIMENSIONS -DDC_NOHW_BUFFER_WIDTH=1024 -DDC_NOHW_BUFFER_HEIGHT=768
++CFLAGS_services4/3rdparty/dc_nohw/dc_nohw_displayclass.o := $(DC_NOHW_FLAGS)
++CFLAGS_services4/3rdparty/dc_nohw/dc_nohw_linux.o := $(DC_NOHW_FLAGS)
+diff --git a/services4/3rdparty/dc_nohw/dc_nohw_linux.c b/services4/3rdparty/dc_nohw/dc_nohw_linux.c
+index 75f122f..9f95ef1 100644
+--- a/services4/3rdparty/dc_nohw/dc_nohw_linux.c
++++ b/services4/3rdparty/dc_nohw/dc_nohw_linux.c
+@@ -236,7 +236,11 @@ DC_ERROR AllocDiscontigMemory(unsigned long ulSize,
+ 	unsigned long ulPage;
+ 	IMG_CPU_VIRTADDR LinAddr;
+ 
+-	LinAddr = __vmalloc(ulSize, GFP_KERNEL | __GFP_HIGHMEM, pgprot_noncached(PAGE_KERNEL));
++	/*
++	 * __vmalloc() lost its pgprot argument; these buffers are never scanned out (no display
++	 * hardware behind dc_nohw), so a cached mapping is acceptable here.
++	 */
++	LinAddr = vmalloc(ulSize);
+ 	if (!LinAddr)
+ 	{
+ 		return DC_ERROR_OUT_OF_MEMORY;
+-- 
+2.56.0
+

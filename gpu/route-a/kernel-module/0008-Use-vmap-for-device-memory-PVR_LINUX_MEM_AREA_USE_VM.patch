@@ -1,0 +1,82 @@
+From 667bb3fe808452ea3b423864afaf0021a11f8afb Mon Sep 17 00:00:00 2001
+From: Mechres <164776284+Mechres@users.noreply.github.com>
+Date: Sat, 31 Oct 2026 07:41:50 +0300
+Subject: [PATCH 08/11] Use vmap for device memory
+ (PVR_LINUX_MEM_AREA_USE_VMAP): stock microkernel starts
+
+Without it, device memory came from __vmalloc(), which no longer takes a page
+protection argument, so it was mapped cached: the host never saw the
+microkernel's init status (and the GPU could see stale data). With vmap the
+uncached/write-combined protection is kept, as in TI's 1.17 build. The stock
+Allwinner 1.12 pvrsrvctl now initialises the SGX on Linux 7.2 through this
+module, and active power management gates the clocks when idle.
+
+Also: keep_clocks module parameter (debugging aid) and clock transition debug
+messages.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ Kbuild                                  |  3 ++-
+ services4/system/sunxi/sysutils_linux.c | 12 +++++++++++-
+ 2 files changed, 13 insertions(+), 2 deletions(-)
+
+diff --git a/Kbuild b/Kbuild
+index 4736573..84753f4 100644
+--- a/Kbuild
++++ b/Kbuild
+@@ -25,7 +25,8 @@ ccflags-y += -DLINUX -D__linux__ -DSERVICES4 -DRELEASE -DPVR_BUILD_TYPE='"releas
+ 	-DSYS_SGX_DEV_NAME='"allwinner,sun6i-a31-gpu"' -DLDM_PLATFORM -DPVR_LDM_DEVICE_TREE \
+ 	-DSYS_USING_INTERRUPTS -DPVR_LINUX_USING_WORKQUEUES -DPVR_LINUX_MISR_USING_PRIVATE_WORKQUEUE \
+ 	-DPVR_LINUX_TIMERS_USING_WORKQUEUES -DSYS_CUSTOM_POWERLOCK_WRAP -DPVR_NO_OMAP_TIMER \
+-	-DPVR_LINUX_MEM_AREA_POOL_MAX_PAGES=0 -DIMG_ADDRSPACE_PHYSADDR_BITS=32
++	-DPVR_LINUX_MEM_AREA_POOL_MAX_PAGES=0 -DIMG_ADDRSPACE_PHYSADDR_BITS=32 \
++	-DPVR_LINUX_MEM_AREA_USE_VMAP
+ 
+ # core
+ ccflags-y += -DSGX544 -DSGXCORE=544 -DSGX_CORE_REV=115 -DSGX_FEATURE_MP -DSGX_FEATURE_MP_CORE_COUNT=2 \
+diff --git a/services4/system/sunxi/sysutils_linux.c b/services4/system/sunxi/sysutils_linux.c
+index b73d206..117469d 100644
+--- a/services4/system/sunxi/sysutils_linux.c
++++ b/services4/system/sunxi/sysutils_linux.c
+@@ -659,18 +659,27 @@ static PVRSRV_ERROR SunxiGPUPowerOn(SYS_SPECIFIC_DATA *psSysSpecData)
+  * (with the init scripts from user space) runs again after each power-up.
+  * Stock gate order: hyd, core, AHB, mem.
+  */
++/* debugging aid: keep the SGX clocks running once they are on (no gating on idle) */
++static bool keep_clocks;
++module_param(keep_clocks, bool, 0644);
++MODULE_PARM_DESC(keep_clocks, "never gate the SGX clocks after the first power-up");
++
+ static PVRSRV_ERROR SunxiSGXClocksOn(SYS_SPECIFIC_DATA *psSysSpecData)
+ {
+ 	void __iomem *ccu = psSysSpecData->pvSunxiCCU;
+ 
+ 	if (!psSysSpecData->bSunxiPowered)
+ 		return PVRSRV_ERROR_UNABLE_TO_ENABLE_CLOCK;
++
+ 	writel(readl(ccu + SUNXI_CCU_BUS_RST1) | SUNXI_GPU_BIT, ccu + SUNXI_CCU_BUS_RST1);
+ 	writel(0x80000000, ccu + SUNXI_CCU_GPU_HYD);		/* PLL8 */
+ 	writel(0x84000000, ccu + SUNXI_CCU_GPU_CORE);		/* PLL9 */
+ 	writel(readl(ccu + SUNXI_CCU_BUS_GATE1) | SUNXI_GPU_BIT, ccu + SUNXI_CCU_BUS_GATE1);
+ 	writel(0x80000000, ccu + SUNXI_CCU_GPU_MEM);		/* PLL8 */
+ 	udelay(10);
++	dev_dbg(&gpsPVRLDMDev->dev, "SGX clocks on: core %08x mem %08x hyd %08x gate1 %08x rst1 %08x\n",
++		 readl(ccu + SUNXI_CCU_GPU_CORE), readl(ccu + SUNXI_CCU_GPU_MEM), readl(ccu + SUNXI_CCU_GPU_HYD),
++		 readl(ccu + SUNXI_CCU_BUS_GATE1), readl(ccu + SUNXI_CCU_BUS_RST1));
+ 	return PVRSRV_OK;
+ }
+ 
+@@ -678,8 +687,9 @@ static IMG_VOID SunxiSGXClocksOff(SYS_SPECIFIC_DATA *psSysSpecData)
+ {
+ 	void __iomem *ccu = psSysSpecData->pvSunxiCCU;
+ 
+-	if (!psSysSpecData->bSunxiPowered)
++	if (!psSysSpecData->bSunxiPowered || keep_clocks)
+ 		return;
++	dev_dbg(&gpsPVRLDMDev->dev, "SGX clocks off\n");
+ 	writel(0, ccu + SUNXI_CCU_GPU_MEM);
+ 	writel(readl(ccu + SUNXI_CCU_BUS_GATE1) & ~SUNXI_GPU_BIT, ccu + SUNXI_CCU_BUS_GATE1);
+ 	writel(0x04000000, ccu + SUNXI_CCU_GPU_CORE);
+-- 
+2.56.0
+

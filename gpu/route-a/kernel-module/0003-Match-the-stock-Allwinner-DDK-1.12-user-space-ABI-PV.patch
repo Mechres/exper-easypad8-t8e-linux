@@ -1,0 +1,160 @@
+From 0444f124560f31c830ed10c2cc173fff0ac463fd Mon Sep 17 00:00:00 2001
+From: Mechres <164776284+Mechres@users.noreply.github.com>
+Date: Sat, 31 Oct 2026 07:08:34 +0300
+Subject: [PATCH 03/11] Match the stock Allwinner DDK 1.12 user-space ABI
+ (PVR_T8E_ABI_1_12)
+
+SUPPORT_MEMINFO_IDS, plus a PVR_T8E_ABI_1_12 switch that gives the stock Android
+build's structure layout and ioctl numbering without its ION and native fence
+functionality: uiIonBufferSize and iFenceFd fields, the two ION ioctls (dummy
+handlers), no bDisableClockGating in the init info, ui32Flags in
+SGX_INTERNAL_DEVINFO. All 124 bridge structures and 173 interface structures now
+match the stock pvrsrvkm.ko DWARF member for member (routeA/layout-diff.sh); only
+the kernel-internal PVRSRV_DC_SWAPCHAIN differs.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ Kbuild                                       | 6 +++++-
+ include4/services.h                          | 2 +-
+ services4/include/pvr_bridge.h               | 2 +-
+ services4/include/sgxinfo.h                  | 9 ++++++---
+ services4/srvkm/bridged/bridged_pvr_bridge.c | 4 ++++
+ services4/srvkm/devices/sgx/sgxinit.c        | 5 +++++
+ services4/srvkm/devices/sgx/sgxutils.c       | 4 ++++
+ 7 files changed, 26 insertions(+), 6 deletions(-)
+
+diff --git a/Kbuild b/Kbuild
+index b7fda50..f5419cd 100644
+--- a/Kbuild
++++ b/Kbuild
+@@ -36,7 +36,11 @@ ccflags-y += -DSUPPORT_SRVINIT -DSUPPORT_SGX -DSUPPORT_HW_RECOVERY -DPVR_SECURE_
+ 	-DPVRSRV_USSE_EDM_STATUS_DEBUG -DSUPPORT_ACTIVE_POWER_MANAGEMENT -DSUPPORT_PERCONTEXT_PB \
+ 	-DSUPPORT_SGX_HWPERF -DSUPPORT_SGX_PRIORITY_SCHEDULING -DSUPPORT_SGX_LOW_LATENCY_SCHEDULING \
+ 	-DTRANSFER_QUEUE -DSUPPORT_SGX_EVENT_OBJECT -DSUPPORT_PVRSRV_DEVICE_CLASS \
+-	-DSUPPORT_LISR_MISR_SYNC -DSUPPORT_SGX_NEW_STATUS_VALS
++	-DSUPPORT_LISR_MISR_SYNC -DSUPPORT_SGX_NEW_STATUS_VALS \
++	-DSUPPORT_MEMINFO_IDS
++# stock structure layout and ioctl numbering of the Android build (ION and native fence fields, the two
++# ION ioctls) without the ION/sync functionality, which mainline does not have
++ccflags-y += -DPVR_T8E_ABI_1_12
+ 
+ ccflags-y += -Wno-pointer-arith -Wno-sign-conversion -fno-strict-aliasing -g
+ 
+diff --git a/include4/services.h b/include4/services.h
+index bb17d58..98d5e1f 100644
+--- a/include4/services.h
++++ b/include4/services.h
+@@ -464,7 +464,7 @@ typedef struct _PVRSRV_CLIENT_MEM_INFO_
+ 	IMG_UINT32							dummy2;
+ 	#endif /* !defined(USE_CODE) */
+ #endif /* defined(SUPPORT_MEMINFO_IDS) */
+-#if defined(SUPPORT_ION)
++#if defined(SUPPORT_ION) || defined(PVR_T8E_ABI_1_12)
+ 	IMG_SIZE_T							uiIonBufferSize;
+ #endif /* defined(SUPPORT_ION) */
+ #if defined(SUPPORT_DMABUF)
+diff --git a/services4/include/pvr_bridge.h b/services4/include/pvr_bridge.h
+index 3377b2b..134a5f6 100644
+--- a/services4/include/pvr_bridge.h
++++ b/services4/include/pvr_bridge.h
+@@ -121,7 +121,7 @@ extern "C" {
+ #define PVRSRV_BRIDGE_CHG_DEV_MEM_ATTRIBS		PVRSRV_IOWR(PVRSRV_BRIDGE_CORE_CMD_FIRST+26)
+ #define PVRSRV_BRIDGE_MAP_DEV_MEMORY_2			PVRSRV_IOWR(PVRSRV_BRIDGE_CORE_CMD_FIRST+27)
+ #define PVRSRV_BRIDGE_EXPORT_DEVICEMEM_2		PVRSRV_IOWR(PVRSRV_BRIDGE_CORE_CMD_FIRST+28)
+-#if defined (SUPPORT_ION)
++#if defined (SUPPORT_ION) || defined(PVR_T8E_ABI_1_12)
+ #define PVRSRV_BRIDGE_MAP_ION_HANDLE			PVRSRV_IOWR(PVRSRV_BRIDGE_CORE_CMD_FIRST+29)
+ #define PVRSRV_BRIDGE_UNMAP_ION_HANDLE			PVRSRV_IOWR(PVRSRV_BRIDGE_CORE_CMD_FIRST+30)
+ #define PVRSRV_BRIDGE_ION_CMD_LAST			(PVRSRV_BRIDGE_CORE_CMD_FIRST+30)
+diff --git a/services4/include/sgxinfo.h b/services4/include/sgxinfo.h
+index 67da857..88bf417 100644
+--- a/services4/include/sgxinfo.h
++++ b/services4/include/sgxinfo.h
+@@ -142,7 +142,7 @@ typedef struct _SGX_BRIDGE_INIT_INFO_
+ 	IMG_UINT32 ui32MasterClkGateStatus2Mask;
+ #endif /* SGX_FEATURE_MP */
+ 
+-#if defined(SGX_FEATURE_AUTOCLOCKGATING)
++#if defined(SGX_FEATURE_AUTOCLOCKGATING) && !defined(PVR_T8E_ABI_1_12)
+ 	IMG_BOOL bDisableClockGating;
+ #endif
+ 	IMG_UINT32 ui32CacheControl;
+@@ -272,6 +272,9 @@ typedef struct _SGX_CLIENT_INFO_
+  *****************************************************************************/
+ typedef struct _SGX_INTERNAL_DEVINFO_
+ {
++#if defined(PVR_T8E_ABI_1_12)
++	IMG_UINT32			ui32Flags;		/* present in the 1.12 bridge layout */
++#endif
+ 	IMG_HANDLE			hHostCtlKernelMemInfoHandle;
+ 	IMG_BOOL			bForcePTOff;
+ } SGX_INTERNAL_DEVINFO;
+@@ -309,7 +312,7 @@ typedef struct _PVRSRV_TRANSFER_SGX_KICK_
+ 	IMG_UINT32		ui32CCBDumpWOff;
+ #endif
+ 	IMG_HANDLE		hDevMemContext;
+-#if defined(PVR_ANDROID_NATIVE_WINDOW_HAS_SYNC)
++#if defined(PVR_ANDROID_NATIVE_WINDOW_HAS_SYNC) || defined(PVR_T8E_ABI_1_12)
+ 	/* Android >JB MR1 doesn't use ahSrcSyncInfo for synchronization */
+ 	IMG_INT			iFenceFd;
+ #endif
+@@ -340,7 +343,7 @@ typedef struct _PVRSRV_2D_SGX_KICK_
+ 	IMG_UINT32		ui32CCBDumpWOff;
+ #endif
+ 	IMG_HANDLE		hDevMemContext;
+-#if defined(PVR_ANDROID_NATIVE_WINDOW_HAS_SYNC)
++#if defined(PVR_ANDROID_NATIVE_WINDOW_HAS_SYNC) || defined(PVR_T8E_ABI_1_12)
+ 	/* Android >JB MR1 doesn't use ahSrcSyncInfo for synchronization */
+ 	IMG_INT			iFenceFd;
+ #endif
+diff --git a/services4/srvkm/bridged/bridged_pvr_bridge.c b/services4/srvkm/bridged/bridged_pvr_bridge.c
+index f4cfbaf..503385b 100644
+--- a/services4/srvkm/bridged/bridged_pvr_bridge.c
++++ b/services4/srvkm/bridged/bridged_pvr_bridge.c
+@@ -4654,6 +4654,10 @@ CommonBridgeInit(IMG_VOID)
+ #if defined(SUPPORT_ION)
+ 	SetDispatchTableEntry(PVRSRV_BRIDGE_MAP_ION_HANDLE, PVRSRVMapIonHandleBW);
+ 	SetDispatchTableEntry(PVRSRV_BRIDGE_UNMAP_ION_HANDLE, PVRSRVUnmapIonHandleBW);
++#elif defined(PVR_T8E_ABI_1_12)
++	/* the 1.12 Android user space knows these calls; there is no ION here */
++	SetDispatchTableEntry(PVRSRV_BRIDGE_MAP_ION_HANDLE, DummyBW);
++	SetDispatchTableEntry(PVRSRV_BRIDGE_UNMAP_ION_HANDLE, DummyBW);
+ #endif
+ #if defined(SUPPORT_DMABUF)
+ 	SetDispatchTableEntry(PVRSRV_BRIDGE_MAP_DMABUF, PVRSRVMapDmaBufBW);
+diff --git a/services4/srvkm/devices/sgx/sgxinit.c b/services4/srvkm/devices/sgx/sgxinit.c
+index 53db87c..f350110 100644
+--- a/services4/srvkm/devices/sgx/sgxinit.c
++++ b/services4/srvkm/devices/sgx/sgxinit.c
+@@ -300,8 +300,13 @@ static PVRSRV_ERROR InitDevInfo(PVRSRV_PER_PROCESS_DATA *psPerProc,
+ 	psDevInfo->ui32MasterClkGateStatus2Mask = psInitInfo->ui32MasterClkGateStatus2Mask;
+ #endif /* SGX_FEATURE_MP */
+ #if defined(SGX_FEATURE_AUTOCLOCKGATING)
++#if defined(PVR_T8E_ABI_1_12)
++	/* the 1.12 init info has no such flag: the clock gating values come from user space */
++	psDevInfo->bDisableClockGating = IMG_FALSE;
++#else
+ 	psDevInfo->bDisableClockGating = psInitInfo->bDisableClockGating;
+ #endif
++#endif
+ 
+ 
+ 	/* Initialise Dev Data */
+diff --git a/services4/srvkm/devices/sgx/sgxutils.c b/services4/srvkm/devices/sgx/sgxutils.c
+index 1ed3289..f9ba39a 100644
+--- a/services4/srvkm/devices/sgx/sgxutils.c
++++ b/services4/srvkm/devices/sgx/sgxutils.c
+@@ -821,6 +821,10 @@ PVRSRV_ERROR SGXGetInternalDevInfoKM(IMG_HANDLE hDevCookie,
+ {
+ 	PVRSRV_SGXDEV_INFO *psDevInfo = (PVRSRV_SGXDEV_INFO *)((PVRSRV_DEVICE_NODE *)hDevCookie)->pvDevice;
+ 
++#if defined(PVR_T8E_ABI_1_12)
++	/* 1.9-1.12 copied a device flags word that nothing ever set */
++	psSGXInternalDevInfo->ui32Flags = 0;
++#endif
+ 	psSGXInternalDevInfo->bForcePTOff = (IMG_BOOL)psDevInfo->bForcePTOff;
+ 
+ 	/* This should be patched up by OS bridge code */
+-- 
+2.56.0
+
